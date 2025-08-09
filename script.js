@@ -61,6 +61,44 @@ source.enable = function(config, settingsIn) {
     console.log(`${TAG}: Enabled with settings:`, settings);
 };
 
+source.getHome = function() {
+    return fetchMixedVideos({ count: 20 });
+};
+
+source.searchSuggestions = function(query) {
+    return [];
+};
+
+source.getSearchCapabilities = function() {
+    return {
+        types: [Type.Feed.Mixed],
+        sorts: [Type.Order.Chronological, "publishedAt"]
+    };
+};
+
+source.search = function(query, type, order, filters) {
+    return searchMixed(query, { 
+        sort: order === Type.Order.Chronological ? "-publishedAt" : order,
+        count: 50 
+    });
+};
+
+source.isChannelUrl = function(url) {
+    return /\/c\/|\/a\/|\/video-channels\//.test(url);
+};
+
+source.isContentDetailsUrl = function(url) {
+    return /\/w\/|\/videos\/watch\//.test(url);
+};
+
+source.getContentDetails = function(url) {
+    const instance = extractInstanceFromUrl(url);
+    if (!instance) {
+        return getVideoDetails(url, getSettings().primaryInstance);
+    }
+    return getVideoDetails(url, instance);
+};
+
 /**
  * Fetch random PeerTube instances from the public directory
  */

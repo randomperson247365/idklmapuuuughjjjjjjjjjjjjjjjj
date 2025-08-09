@@ -43,18 +43,23 @@ const LANGUAGES = {
  */
 function getSettings() {
     return {
-        primaryInstance: getSetting("primaryInstance") || "peertube.futo.org",
-        additionalInstances: (getSetting("additionalInstances") || "").split(",").map(s => s.trim()).filter(s => s),
+        primaryInstance: settings.primaryInstance || "peertube.futo.org",
+        additionalInstances: (settings.additionalInstances || "").split(",").map(s => s.trim()).filter(s => s),
         contentMixRatio: 3, // Fixed value since we removed the setting
         showRemoteVideos: true, // Fixed value
         preferredLanguages: ["en"], // Fixed value
         contentCategories: ["all"], // Fixed value
-        enableRandomInstances: getSetting("enableRandomInstances") !== "false",
+        enableRandomInstances: settings.enableRandomInstances !== false,
         randomInstanceCount: 3, // Fixed value
         instanceHealthFilter: true, // Fixed value
         cacheRandomInstances: true // Fixed value
     };
 }
+
+source.enable = function(config, settingsIn) {
+    settings = settingsIn || {};
+    console.log(`${TAG}: Enabled with settings:`, settings);
+};
 
 /**
  * Fetch random PeerTube instances from the public directory

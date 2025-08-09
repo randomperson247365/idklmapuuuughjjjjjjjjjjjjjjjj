@@ -20,7 +20,7 @@
 			"name": "Primary Instance URL",
 			"description": "The main PeerTube instance to use (without https://)",
 			"type": "text",
-			"default": "peertube.futo.org",
+			"default": "peertube.futo.org"
 		},
 		{
 			"variable": "additionalInstances",

@@ -9,8 +9,6 @@
 	"version": 2,
 	"iconUrl": "./icon.png",
 	"id": "enhanced-peertube-multi-instance",
-	"scriptSignature": "",
-	"scriptPublicKey": "",
 	"packages": ["Http"],
 	"allowEval": false,
 	"allowUrls": ["everywhere"],

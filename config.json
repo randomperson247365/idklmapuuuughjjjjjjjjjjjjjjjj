@@ -9,8 +9,8 @@
 	"version": 2,
 	"iconUrl": "./icon.png",
 	"id": "enhanced-peertube-multi-instance",
-	"scriptSignature": "",
-	"scriptPublicKey": "",
+	"scriptSignature": "PUT_SIGNATURE_HERE",
+	"scriptPublicKey": "PUT_PUBLIC_KEY_HERE",
 	"packages": ["Http"],
 	"allowEval": false,
 	"allowUrls": ["everywhere"],
@@ -20,7 +20,7 @@
 			"name": "Primary Instance URL",
 			"description": "The main PeerTube instance to use (without https://)",
 			"type": "text",
-			"default": "https://peertube.futo.org"
+			"default": "peertube.futo.org"
 		},
 		{
 			"variable": "additionalInstances",
@@ -59,7 +59,6 @@
 			"default": "all"
 		},
 		{
-			"variable": "randomInstancesHeader",
 			"name": "Random Instance Discovery",
 			"description": "Automatically discover and use random PeerTube instances from the public directory for maximum content diversity",
 			"type": "Header"

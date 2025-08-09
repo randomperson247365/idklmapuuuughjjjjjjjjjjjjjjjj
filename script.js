@@ -43,16 +43,16 @@ const LANGUAGES = {
  */
 function getSettings() {
     return {
-        primaryInstance: getVariable("primaryInstance") || "peertube.futo.org",
-        additionalInstances: (getVariable("additionalInstances") || "").split(",").map(s => s.trim()).filter(s => s),
-        contentMixRatio: parseInt(getVariable("contentMixRatio")) || 3,
-        showRemoteVideos: getVariable("showRemoteVideos") !== "false",
-        preferredLanguages: (getVariable("preferredLanguages") || "en").split(",").map(s => s.trim()),
-        contentCategories: (getVariable("contentCategories") || "all").split(",").map(s => s.trim()),
-        enableRandomInstances: getVariable("enableRandomInstances") !== "false",
-        randomInstanceCount: parseInt(getVariable("randomInstanceCount")) || 3,
-        instanceHealthFilter: getVariable("instanceHealthFilter") !== "false",
-        cacheRandomInstances: getVariable("cacheRandomInstances") !== "false"
+        primaryInstance: getSetting("primaryInstance") || "peertube.futo.org",
+        additionalInstances: (getSetting("additionalInstances") || "").split(",").map(s => s.trim()).filter(s => s),
+        contentMixRatio: parseInt(getSetting("contentMixRatio")) || 3,
+        showRemoteVideos: getSetting("showRemoteVideos") !== "false",
+        preferredLanguages: (getSetting("preferredLanguages") || "en").split(",").map(s => s.trim()),
+        contentCategories: (getSetting("contentCategories") || "all").split(",").map(s => s.trim()),
+        enableRandomInstances: getSetting("enableRandomInstances") !== "false",
+        randomInstanceCount: parseInt(getSetting("randomInstanceCount")) || 3,
+        instanceHealthFilter: getSetting("instanceHealthFilter") !== "false",
+        cacheRandomInstances: getSetting("cacheRandomInstances") !== "false"
     };
 }
 

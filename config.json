@@ -1,8 +1,8 @@
 {
     "name": "Enhanced PeerTube",
     "description": "An improved PeerTube plugin supporting multiple instances with diverse content discovery",
-    "author": "Enhanced by Assistant",
-    "authorUrl": "https://github.com/assistant",
+    "author": "Enhanced by AI Assistant due to this not being worth my time",
+    "authorUrl": "https://github.com/randomperson247365",
     "sourceUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/refs/heads/main/config.json",
     "repositoryUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/refs/heads/main/script.js",
     "scriptUrl": "./Script.js",

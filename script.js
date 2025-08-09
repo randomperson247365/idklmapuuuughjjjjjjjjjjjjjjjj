@@ -45,14 +45,14 @@ function getSettings() {
     return {
         primaryInstance: getSetting("primaryInstance") || "peertube.futo.org",
         additionalInstances: (getSetting("additionalInstances") || "").split(",").map(s => s.trim()).filter(s => s),
-        contentMixRatio: parseInt(getSetting("contentMixRatio")) || 3,
-        showRemoteVideos: getSetting("showRemoteVideos") !== "false",
-        preferredLanguages: (getSetting("preferredLanguages") || "en").split(",").map(s => s.trim()),
-        contentCategories: (getSetting("contentCategories") || "all").split(",").map(s => s.trim()),
+        contentMixRatio: 3, // Fixed value since we removed the setting
+        showRemoteVideos: true, // Fixed value
+        preferredLanguages: ["en"], // Fixed value
+        contentCategories: ["all"], // Fixed value
         enableRandomInstances: getSetting("enableRandomInstances") !== "false",
-        randomInstanceCount: parseInt(getSetting("randomInstanceCount")) || 3,
-        instanceHealthFilter: getSetting("instanceHealthFilter") !== "false",
-        cacheRandomInstances: getSetting("cacheRandomInstances") !== "false"
+        randomInstanceCount: 3, // Fixed value
+        instanceHealthFilter: true, // Fixed value
+        cacheRandomInstances: true // Fixed value
     };
 }
 

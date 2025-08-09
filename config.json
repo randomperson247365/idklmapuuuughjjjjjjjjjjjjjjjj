@@ -1,14 +1,44 @@
 {
-    "name": "Enhanced PeerTube Test",
-    "description": "Test version",
-    "author": "randomperson247365",
-    "authorUrl": "https://github.com/randomperson247365",
-    "sourceUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/config.json",
-    "repositoryUrl": "https://github.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj",
-    "scriptUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/script.js",
-    "version": 1,
-    "id": "enhanced-peertube-test",
-    "packages": ["Http"],
-    "allowEval": false,
-    "allowUrls": ["everywhere"]
+	"name": "Enhanced PeerTube",
+	"description": "An improved PeerTube plugin supporting multiple instances with diverse content discovery",
+	"author": "Enhanced by AI Assistant due to this not being worth my time",
+	"authorUrl": "https://github.com/randomperson247365",
+	"sourceUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/config.json",
+	"repositoryUrl": "https://github.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj",
+	"scriptUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/script.js",
+
+	"version": 1,
+	"iconUrl": "./icon.png",
+	"id": "enhanced-peertube-multi-instance",
+	
+	"scriptSignature": "",
+	"scriptPublicKey": "",
+	"packages": ["Http"],
+
+	"allowEval": false,
+	"allowUrls": ["everywhere"],
+
+	"settings": [
+		{
+			"variable": "primaryInstance",
+			"name": "Primary Instance URL",
+			"description": "The main PeerTube instance to use (without https://)",
+			"type": "text",
+			"default": "peertube.futo.org"
+		},
+		{
+			"variable": "additionalInstances",
+			"name": "Additional Instances",
+			"description": "Comma-separated list of additional PeerTube instances (without https://)",
+			"type": "text",
+			"default": "tube.tchncs.de,video.blender.org,peertube.social"
+		},
+		{
+			"variable": "enableRandomInstances",
+			"name": "Enable Random Instances",
+			"description": "Discover and use random PeerTube instances from the public list",
+			"type": "Boolean",
+			"default": "true"
+		}
+	]
 }

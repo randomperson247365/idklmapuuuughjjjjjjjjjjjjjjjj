@@ -7,7 +7,7 @@
 	"repositoryUrl": "https://github.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj",
 	"scriptUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/script.js",
 
-	"version": 1,
+	"version": 2,
 	"iconUrl": "./icon.png",
 	"id": "enhanced-peertube-multi-instance",
 	
@@ -34,11 +34,71 @@
 			"default": "tube.tchncs.de,video.blender.org,peertube.social"
 		},
 		{
+			"variable": "contentMixRatio",
+			"name": "Content Mix Ratio",
+			"description": "How much content to fetch from each instance (1-10 videos per instance)",
+			"type": "Dropdown",
+			"default": "3",
+			"options": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+		},
+		{
+			"variable": "showRemoteVideos",
+			"name": "Show Remote Videos",
+			"description": "Include videos from other instances that are federated",
+			"type": "Boolean",
+			"default": "true"
+		},
+		{
+			"variable": "preferredLanguages",
+			"name": "Preferred Languages",
+			"description": "Comma-separated language codes (en,fr,de,es,etc.) or 'all' for any language",
+			"type": "text",
+			"default": "en"
+		},
+		{
+			"variable": "contentCategories",
+			"name": "Content Categories",
+			"description": "Filter by categories: all,music,entertainment,news,education,science,comedy,gaming,sports,people,travel",
+			"type": "text",
+			"default": "all"
+		},
+		{
+			"variable": "randomInstancesHeader",
+			"name": "Random Instance Discovery",
+			"description": "Automatically discover and use random PeerTube instances from the public directory for maximum content diversity",
+			"type": "Header"
+		},
+		{
 			"variable": "enableRandomInstances",
 			"name": "Enable Random Instances",
 			"description": "Discover and use random PeerTube instances from the public list",
 			"type": "Boolean",
 			"default": "true"
+		},
+		{
+			"variable": "randomInstanceCount",
+			"name": "Random Instance Count",
+			"description": "Number of random instances to discover and use (1-10)",
+			"type": "Dropdown",
+			"default": "3",
+			"dependency": "enableRandomInstances",
+			"options": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+		},
+		{
+			"variable": "instanceHealthFilter",
+			"name": "Instance Health Filter",
+			"description": "Only use instances that are healthy and responsive",
+			"type": "Boolean",
+			"default": "true",
+			"dependency": "enableRandomInstances"
+		},
+		{
+			"variable": "cacheRandomInstances",
+			"name": "Cache Random Instances",
+			"description": "Cache discovered instances for better performance (30 minute cache)",
+			"type": "Boolean",
+			"default": "true",
+			"dependency": "enableRandomInstances"
 		}
 	]
 }

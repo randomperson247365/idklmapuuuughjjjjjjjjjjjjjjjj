@@ -1,102 +1,14 @@
 {
-    "name": "Enhanced PeerTube",
-    "description": "An improved PeerTube plugin supporting multiple instances with diverse content discovery",
-    "author": "Enhanced by AI Assistant due to this not being worth my time",
+    "name": "Enhanced PeerTube Test",
+    "description": "Test version",
+    "author": "randomperson247365",
     "authorUrl": "https://github.com/randomperson247365",
     "sourceUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/refs/heads/main/config.json",
     "repositoryUrl": "https://github.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj",
     "scriptUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/refs/heads/main/script.js",
-    "version": 2,
-    "iconUrl": "./icon.png",
-    "id": "enhanced-peertube-multi-instance-idklmapuuuughjjjjjjjjjjjjjjjj",
-    "scriptSignature": "",
-    "scriptPublicKey": "",
+    "version": 1,
+    "id": "enhanced-peertube-test",
     "packages": ["Http"],
     "allowEval": false,
-    "allowUrls": [
-        "everywhere"
-    ],
-    "constants": {
-        "defaultInstances": [
-            "peertube.futo.org",
-            "tube.tchncs.de",
-            "video.blender.org",
-            "peertube.social",
-            "framatube.org",
-            "tube.arthack.nz",
-            "peertube.linuxrocks.online"
-        ]
-    },
-    "settings": [
-        {
-            "variable": "primaryInstance",
-            "name": "Primary Instance URL",
-            "description": "The main PeerTube instance to use (without https://)",
-            "type": "text",
-            "default": "peertube.futo.org"
-        },
-        {
-            "variable": "additionalInstances",
-            "name": "Additional Instances",
-            "description": "Comma-separated list of additional PeerTube instances (without https://)",
-            "type": "text",
-            "default": "tube.tchncs.de,video.blender.org,peertube.social"
-        },
-        {
-            "variable": "contentMixRatio",
-            "name": "Content Mix Ratio",
-            "description": "How much content to fetch from each instance (1-10 videos per instance)",
-            "type": "integer",
-            "default": 3
-        },
-        {
-            "variable": "showRemoteVideos",
-            "name": "Show Remote Videos",
-            "description": "Include videos from other instances that are federated",
-            "type": "boolean",
-            "default": true
-        },
-        {
-            "variable": "preferredLanguages",
-            "name": "Preferred Languages",
-            "description": "Comma-separated language codes (en,fr,de,es,etc.) or 'all' for any language",
-            "type": "text",
-            "default": "en"
-        },
-        {
-            "variable": "contentCategories",
-            "name": "Content Categories",
-            "description": "Filter by categories: all,music,entertainment,news,education,science,comedy,gaming,sports,people,travel",
-            "type": "text",
-            "default": "all"
-        },
-        {
-            "variable": "enableRandomInstances",
-            "name": "Enable Random Instances",
-            "description": "Discover and use random PeerTube instances from the public list",
-            "type": "boolean",
-            "default": true
-        },
-        {
-            "variable": "randomInstanceCount",
-            "name": "Random Instance Count",
-            "description": "Number of random instances to discover and use (1-10)",
-            "type": "integer",
-            "default": 3
-        },
-        {
-            "variable": "instanceHealthFilter",
-            "name": "Instance Health Filter",
-            "description": "Only use instances that are healthy and responsive",
-            "type": "boolean",
-            "default": true
-        },
-        {
-            "variable": "cacheRandomInstances",
-            "name": "Cache Random Instances",
-            "description": "Cache discovered instances for better performance",
-            "type": "boolean",
-            "default": true
-        }
-    ]
+    "allowUrls": ["everywhere"]
 }

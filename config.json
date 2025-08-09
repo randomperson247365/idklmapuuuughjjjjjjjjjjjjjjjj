@@ -6,18 +6,14 @@
 	"sourceUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/config.json",
 	"repositoryUrl": "https://github.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj",
 	"scriptUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/script.js",
-
 	"version": 2,
 	"iconUrl": "./icon.png",
 	"id": "enhanced-peertube-multi-instance",
-	
 	"scriptSignature": "",
 	"scriptPublicKey": "",
 	"packages": ["Http"],
-
 	"allowEval": false,
 	"allowUrls": ["everywhere"],
-
 	"settings": [
 		{
 			"variable": "primaryInstance",

@@ -38,66 +38,26 @@ const LANGUAGES = {
     "zh": "Chinese"
 };
 
+let config = {};
+let _settings = {};
+
 /**
  * Initialize plugin settings
  */
 function getSettings() {
     return {
-        primaryInstance: settings.primaryInstance || "peertube.futo.org",
-        additionalInstances: (settings.additionalInstances || "").split(",").map(s => s.trim()).filter(s => s),
-        contentMixRatio: parseInt(settings.contentMixRatio) || 3,
-        showRemoteVideos: settings.showRemoteVideos !== "false",
-        preferredLanguages: (settings.preferredLanguages || "en").split(",").map(s => s.trim()),
-        contentCategories: (settings.contentCategories || "all").split(",").map(s => s.trim()),
-        enableRandomInstances: settings.enableRandomInstances !== "false",
-        randomInstanceCount: parseInt(settings.randomInstanceCount) || 3,
-        instanceHealthFilter: settings.instanceHealthFilter !== "false",
-        cacheRandomInstances: settings.cacheRandomInstances !== "false"
+        primaryInstance: _settings.primaryInstance || "peertube.futo.org",
+        additionalInstances: (_settings.additionalInstances || "").split(",").map(s => s.trim()).filter(s => s),
+        contentMixRatio: parseInt(_settings.contentMixRatio) || 3,
+        showRemoteVideos: _settings.showRemoteVideos !== false,
+        preferredLanguages: (_settings.preferredLanguages || "en").split(",").map(s => s.trim()),
+        contentCategories: (_settings.contentCategories || "all").split(",").map(s => s.trim()),
+        enableRandomInstances: _settings.enableRandomInstances !== false,
+        randomInstanceCount: parseInt(_settings.randomInstanceCount) || 3,
+        instanceHealthFilter: _settings.instanceHealthFilter !== false,
+        cacheRandomInstances: _settings.cacheRandomInstances !== false
     };
 }
-
-source.enable = function(config, settingsIn) {
-    settings = settingsIn || {};
-    console.log(`${TAG}: Enabled with settings:`, settings);
-};
-
-source.getHome = function() {
-    return fetchMixedVideos({ count: 20 });
-};
-
-source.searchSuggestions = function(query) {
-    return [];
-};
-
-source.getSearchCapabilities = function() {
-    return {
-        types: [Type.Feed.Mixed],
-        sorts: [Type.Order.Chronological, "publishedAt"]
-    };
-};
-
-source.search = function(query, type, order, filters) {
-    return searchMixed(query, { 
-        sort: order === Type.Order.Chronological ? "-publishedAt" : order,
-        count: 50 
-    });
-};
-
-source.isChannelUrl = function(url) {
-    return /\/c\/|\/a\/|\/video-channels\//.test(url);
-};
-
-source.isContentDetailsUrl = function(url) {
-    return /\/w\/|\/videos\/watch\//.test(url);
-};
-
-source.getContentDetails = function(url) {
-    const instance = extractInstanceFromUrl(url);
-    if (!instance) {
-        return getVideoDetails(url, getSettings().primaryInstance);
-    }
-    return getVideoDetails(url, instance);
-};
 
 /**
  * Fetch random PeerTube instances from the public directory
@@ -485,6 +445,7 @@ function fetchMixedVideos(params = {}) {
  */
 function searchMixed(query, params = {}) {
     const instances = getAllInstances();
+    const settings = getSettings();
     let allResults = [];
 
     instances.forEach(instance => {
@@ -511,13 +472,12 @@ function searchMixed(query, params = {}) {
 }
 
 // Plugin Interface Implementation
-source.enable = function(config) {
-    settings = getSettings();
+source.enable = function(conf, settings, saveStateStr) {
+    config = conf ?? {};
+    _settings = settings ?? {};
+    
+    console.log(`${TAG}: Enabled with settings:`, _settings);
     console.log(`${TAG}: Enabled with ${getAllInstances().length} instances`);
-};
-
-source.getHome = function() {
-    return fetchMixedVideos({ count: 20 });
 };
 
 source.searchSuggestions = function(query) {

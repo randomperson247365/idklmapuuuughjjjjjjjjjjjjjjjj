@@ -31,8 +31,34 @@ class PeerTubeVideoPager extends VideoPager {
 
 // Plugin lifecycle methods
 source.enable = function(conf, settings, saveStateStr) {
-    config = conf ?? {};
-    console.log(`${TAG}: Plugin enabled`);
+    // Log what we're receiving to debug
+    console.log(`${TAG}: enable called`);
+    console.log(`${TAG}: conf type: ${typeof conf}`);
+    console.log(`${TAG}: settings type: ${typeof settings}`);
+    console.log(`${TAG}: saveStateStr type: ${typeof saveStateStr}`);
+    
+    // Handle conf parameter safely
+    if (conf === undefined || conf === null) {
+        config = {};
+    } else if (typeof conf === 'string') {
+        // If it's a string, try to parse it
+        try {
+            config = JSON.parse(conf);
+        } catch (e) {
+            console.log(`${TAG}: Failed to parse conf string: ${e.message}`);
+            console.log(`${TAG}: conf value: ${conf}`);
+            config = {};
+        }
+    } else if (typeof conf === 'object') {
+        // If it's already an object, use it directly
+        config = conf;
+    } else {
+        // Unknown type, log it and use empty config
+        console.log(`${TAG}: Unknown conf type: ${typeof conf}, value: ${conf}`);
+        config = {};
+    }
+    
+    console.log(`${TAG}: Plugin enabled with config: ${JSON.stringify(config)}`);
 };
 
 source.disable = function() {

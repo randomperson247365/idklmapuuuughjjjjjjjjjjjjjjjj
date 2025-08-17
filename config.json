@@ -11,5 +11,6 @@
     "id": "enhanced-peertube-multi-instance",
     "packages": ["Http"],
     "allowEval": false,
-    "allowUrls": ["everywhere"]
+    "allowUrls": ["everywhere"],
+    "settings": []
 }

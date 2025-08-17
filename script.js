@@ -55,9 +55,10 @@ source.disable = function() {
 source.getHome = function(continuationToken) {
     console.log(`${TAG}: Getting home feed`);
     const page = continuationToken ? parseInt(continuationToken) : 0;
+    const showRemote = _settings.showRemoteVideos === "true";
     return getVideoPager('/api/v1/videos', { 
         sort: "-publishedAt",
-        isLocal: _settings.showRemoteVideos ? undefined : true
+        isLocal: showRemote ? undefined : true
     }, page);
 };
 
@@ -79,11 +80,12 @@ source.search = function(query, type, order, filters, continuationToken) {
     console.log(`${TAG}: Searching for: ${query}`);
     const page = continuationToken ? parseInt(continuationToken) : 0;
     const sort = order || "-publishedAt";
+    const showRemote = _settings.showRemoteVideos === "true";
     
     return getVideoPager('/api/v1/search/videos', { 
         search: query, 
         sort: sort,
-        isLocal: _settings.showRemoteVideos ? undefined : true
+        isLocal: showRemote ? undefined : true
     }, page);
 };
 
@@ -374,8 +376,8 @@ function getActiveInstances() {
         instances.push(...additional);
     }
     
-    // Add random instances if enabled
-    if (_settings.enableRandomInstances) {
+    // Add random instances if enabled (check for string "true")
+    if (_settings.enableRandomInstances === "true") {
         const randomInstances = getRandomInstances();
         randomInstances.forEach(instance => {
             if (!instances.includes(instance)) {
@@ -389,8 +391,8 @@ function getActiveInstances() {
 
 // Get random instances (with caching)
 function getRandomInstances() {
-    // Check cache
-    if (_settings.cacheRandomInstances && instanceCache && 
+    // Check cache (settings are strings, so check for "true")
+    if (_settings.cacheRandomInstances === "true" && instanceCache && 
         (Date.now() - instanceCacheTime) < CACHE_DURATION) {
         return instanceCache;
     }

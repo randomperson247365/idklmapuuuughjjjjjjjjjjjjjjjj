@@ -34,73 +34,73 @@
             "variable": "primaryInstance",
             "name": "Primary Instance URL",
             "description": "The main PeerTube instance to use (without https://)",
-            "type": "Text",
+            "type": "String",
             "default": "peertube.futo.org"
         },
         {
             "variable": "additionalInstances",
             "name": "Additional Instances",
             "description": "Comma-separated list of additional PeerTube instances (without https://)",
-            "type": "Text",
+            "type": "String",
             "default": "tube.tchncs.de,video.blender.org,peertube.social"
         },
         {
             "variable": "contentMixRatio",
             "name": "Content Mix Ratio",
             "description": "How much content to fetch from each instance (1-10 videos per instance)",
-            "type": "Select",
-            "default": 3,
-            "options": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            "type": "Dropdown",
+            "default": "3",
+            "options": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
         },
         {
             "variable": "showRemoteVideos",
             "name": "Show Remote Videos",
             "description": "Include videos from other instances that are federated",
-            "type": "Toggle",
-            "default": true
+            "type": "Boolean",
+            "default": "true"
         },
         {
             "variable": "preferredLanguages",
             "name": "Preferred Languages",
             "description": "Comma-separated language codes (en,fr,de,es,etc.) or 'all' for any language",
-            "type": "Text",
+            "type": "String",
             "default": "en"
         },
         {
             "variable": "contentCategories",
             "name": "Content Categories",
             "description": "Filter by categories: all,music,entertainment,news,education,science,comedy,gaming,sports,people,travel",
-            "type": "Text",
+            "type": "String",
             "default": "all"
         },
         {
             "variable": "enableRandomInstances",
             "name": "Enable Random Instances",
             "description": "Discover and use random PeerTube instances from the public list",
-            "type": "Toggle",
-            "default": false
+            "type": "Boolean",
+            "default": "false"
         },
         {
             "variable": "randomInstanceCount",
             "name": "Random Instance Count",
             "description": "Number of random instances to discover and use (1-10)",
-            "type": "Select",
-            "default": 3,
-            "options": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            "type": "Dropdown",
+            "default": "3",
+            "options": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
         },
         {
             "variable": "instanceHealthFilter",
             "name": "Instance Health Filter",
             "description": "Only use instances that are healthy and responsive",
-            "type": "Toggle",
-            "default": true
+            "type": "Boolean",
+            "default": "true"
         },
         {
             "variable": "cacheRandomInstances",
             "name": "Cache Random Instances",
             "description": "Cache discovered instances for better performance (30 minute cache)",
-            "type": "Toggle",
-            "default": true
+            "type": "Boolean",
+            "default": "true"
         }
     ]
 }

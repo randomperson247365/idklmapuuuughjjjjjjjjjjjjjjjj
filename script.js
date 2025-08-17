@@ -1,5 +1,11 @@
-// PeerTubeScript.js - Robust parseSettings + retry-with-backoff + multi-instance + dedupe + language filtering
-// Replace your PeerTubeScript.js with this file exactly.
+// PeerTubeScript.js - Full updated plugin
+// Features:
+// - Detailed, defensive parseSettings with diagnostic logs
+// - Retry-with-exponential-backoff before parsing settings/saveState
+// - Multi-instance support (editable via settings), random sampling, dedupe, per-channel limits
+// - Client-side preferred-language heuristic and best-effort server param
+// - Safe saveState parsing with diagnostics
+// - Full Pagers / Media handling / Playback tracker etc.
 
 const PLATFORM = "PeerTube";
 let config = {};
@@ -26,50 +32,117 @@ let SEARCH_ENGINE_OPTIONS = [];
 
 Type.Feed.Playlists = "PLAYLISTS";
 
+/* ---------------------- Diagnostics parseSettings ---------------------- */
 /**
- * Defensive parseSettings:
- * - Strings: trim; if empty string => keep '' and do not JSON.parse.
- * - If JSON.parse fails => fallback to raw trimmed string and log.
- * - Non-strings are used as-is.
- * - Never throws.
+ * Detailed and defensive parseSettings:
+ * - Logs per-key diagnostics (type, length).
+ * - For JSON.parse errors logs stack, snippet (200 chars) and base64 length (if encodable).
+ * - Never throws; always returns a safe object.
  */
 function parseSettings(settings) {
     if (!settings) return {};
+
     const newSettings = {};
+    const topLevelIsString = (typeof settings === 'string');
+
     for (const key in settings) {
         try {
             const val = settings[key];
+
             if (typeof val === 'string') {
-                const s = val.length ? val.trim() : '';
-                if (s === '') {
+                const raw = val;
+                const trimmed = raw.length ? raw.trim() : '';
+
+                if (trimmed === '') {
                     newSettings[key] = '';
-                    log(`parseSettings: key='${key}' type=string length=0 -> empty string`);
+                    log(`[parseSettings] key='${key}' type=string length=0 -> kept as empty string`);
                     continue;
                 }
-                try {
-                    const parsed = JSON.parse(s);
-                    newSettings[key] = parsed;
-                    log(`parseSettings: key='${key}' parsed as JSON type='${typeof parsed}'`);
-                } catch (e) {
-                    newSettings[key] = s;
-                    log(`parseSettings: key='${key}' JSON.parse failed, using raw string. Error: ${e}`);
+
+                const firstChar = trimmed[0];
+                if (firstChar === '{' || firstChar === '[' || (firstChar === '"' && trimmed.endsWith('"'))) {
+                    try {
+                        newSettings[key] = JSON.parse(trimmed);
+                        log(`[parseSettings] key='${key}' parsed as JSON type='${typeof newSettings[key]}'`);
+                        continue;
+                    } catch (parseErr) {
+                        // Build diagnostics
+                        const errStack = (new Error()).stack || 'no-stack';
+                        const snippet = trimmed.length > 512 ? trimmed.slice(0, 512) + '...' : trimmed;
+                        let b64 = '';
+                        try {
+                            if (typeof btoa === 'function') b64 = btoa(trimmed);
+                            else if (typeof Buffer !== 'undefined') b64 = Buffer.from(trimmed).toString('base64');
+                        } catch (e) { b64 = ''; }
+
+                        log(`[parseSettings][JSON.parse FAILED] key='${key}' error='${parseErr}'`);
+                        log(`STACK: ${errStack}`);
+                        log(`KEY DIAGNOSTIC: key='${key}' type=string length=${raw.length} snippet(200)='${snippet}' base64_len=${b64.length}`);
+
+                        try {
+                            const summary = {};
+                            for (const k2 in settings) {
+                                const v2 = settings[k2];
+                                summary[k2] = { type: typeof v2, length: (typeof v2 === 'string' ? v2.length : undefined) };
+                            }
+                            log(`[parseSettings] entire-settings-summary: ${JSON.stringify(summary)}`);
+                        } catch (e2) { log('[parseSettings] failed to summarize settings: ' + e2); }
+
+                        // fallback to trimmed string
+                        newSettings[key] = trimmed;
+                        continue;
+                    }
+                } else {
+                    // Not JSON-like, keep trimmed string
+                    newSettings[key] = trimmed;
+                    log(`[parseSettings] key='${key}' kept raw string`);
+                    continue;
                 }
-            } else if (val === null || val === undefined) {
-                newSettings[key] = val;
-                log(`parseSettings: key='${key}' type='${typeof val}' value=null/undefined`);
             } else {
+                // non-string: use as-is
                 newSettings[key] = val;
-                log(`parseSettings: key='${key}' type='${typeof val}' used as-is`);
+                log(`[parseSettings] key='${key}' type='${typeof val}' used as-is`);
+                continue;
             }
         } catch (e) {
-            try { log(`parseSettings: unexpected error for key='${key}': ${e}`); } catch (_) {}
+            log(`[parseSettings] unexpected error processing key='${key}': ${e}`);
+            try { log((new Error()).stack || 'no-stack'); } catch (_) {}
             newSettings[key] = settings[key];
         }
     }
+
+    // If top-level settings was a string (rare), attempt safe parse and merge
+    if (topLevelIsString) {
+        const rawTop = settings;
+        const trimmedTop = rawTop.length ? rawTop.trim() : '';
+        if (trimmedTop === '') {
+            log("[parseSettings] top-level settings is empty string (length=0) — treating as {}");
+            return newSettings;
+        }
+        try {
+            const parsedTop = JSON.parse(trimmedTop);
+            if (parsedTop && typeof parsedTop === 'object') {
+                // parsedTop takes precedence but keep newSettings for keys we didn't parse
+                return Object.assign({}, newSettings, parsedTop);
+            }
+        } catch (topErr) {
+            const stack = (new Error()).stack || 'no-stack';
+            let b64 = '';
+            try {
+                if (typeof btoa === 'function') b64 = btoa(trimmedTop);
+                else if (typeof Buffer !== 'undefined') b64 = Buffer.from(trimmedTop).toString('base64');
+            } catch (e) { b64 = ''; }
+            log(`[parseSettings][TOP-LEVEL JSON.parse FAILED] error='${topErr}'`);
+            log(`STACK: ${stack}`);
+            log(`top-level type=string length=${rawTop.length} snippet(200)='${trimmedTop.slice(0,200)}' base64_len=${b64.length}`);
+            return newSettings;
+        }
+    }
+
     return newSettings;
 }
 
-/* Small helpers */
+/* ---------------------- Normalizers & small helpers ---------------------- */
 function normalizeInstancesList(raw) {
     if (!raw) return [];
     if (Array.isArray(raw)) return raw.map(s => String(s).trim()).filter(Boolean);
@@ -83,7 +156,7 @@ function normalizePreferredLanguages(raw) {
     return [];
 }
 
-/* Health check */
+/* Health check for instances */
 function isInstanceHealthy(baseUrl) {
     try {
         if (!baseUrl) return false;
@@ -95,7 +168,7 @@ function isInstanceHealthy(baseUrl) {
     }
 }
 
-/* Select instances for feed */
+/* Choose instances for sampling */
 function selectInstancesForFeed() {
     const userList = normalizeInstancesList(_settings.instancesList);
     const candidates = [...new Set([ ...(userList || []), plugin.config?.constants?.baseUrl, ...INDEX_INSTANCES.instances ].filter(Boolean))];
@@ -119,7 +192,7 @@ function selectInstancesForFeed() {
     return selected;
 }
 
-/* Seen IDs */
+/* Seen IDs management */
 function pushSeenId(id) {
     if (!id) return;
     state.seenIds = state.seenIds || [];
@@ -128,7 +201,7 @@ function pushSeenId(id) {
     if (state.seenIds.length > seenMax) state.seenIds = state.seenIds.slice(0, seenMax);
 }
 
-/* Client-side language heuristic */
+/* Language heuristic */
 function matchesPreferredLanguage(videoObj) {
     const pref = normalizePreferredLanguages(_settings.preferredLanguages);
     if (!pref.length) return true;
@@ -145,7 +218,7 @@ function matchesPreferredLanguage(videoObj) {
     return false;
 }
 
-/* Defensive getBaseUrl */
+/* Defensive URL handling */
 function getBaseUrl(url) {
     if (typeof url !== 'string') throw new ScriptException('URL must be a string');
     const t = url.trim();
@@ -158,8 +231,16 @@ function getBaseUrl(url) {
         throw new ScriptException(`Invalid URL format: ${url}`);
     }
 }
+function getBaseUrlSafe(url) {
+    try { return getBaseUrl(url); } catch (e) {
+        if (typeof url === 'string' && !/^https?:\/\//i.test(url)) {
+            try { return getBaseUrl('https://' + url); } catch (e2) { return url; }
+        }
+        return url;
+    }
+}
 
-/* addUrlHint helpers */
+/* URL hints */
 function addUrlHint(url, hintParam, hintValue = '1') {
     if (!url) return url;
     if (url.includes(`${hintParam}=${hintValue}`)) return url;
@@ -275,7 +356,7 @@ function getChannelPager(path, params, page, sourceHost = plugin.config.constant
     }
     const obj = JSON.parse(res.body);
     return new PeerTubeChannelPager(obj.data.map(v => {
-        const instanceBaseUrl = isSearch ? getBaseUrl(v.url) : sourceHost;
+        const instanceBaseUrl = isSearch ? getBaseUrlSafe(v.url) : sourceHost;
         return new PlatformAuthorLink(
             new PlatformID(PLATFORM, v.name, config.id),
             v.displayName,
@@ -314,14 +395,14 @@ function getVideoPager(path, params, page, sourceHost = plugin.config.constants.
             ].filter(Boolean).map(getBaseUrlSafe).find(Boolean);
             const contentUrl = addContentUrlHint(v.url || `${baseUrl}/videos/watch/${v.uuid}`);
             const instanceBaseUrl = isSearch ? baseUrl : sourceHost;
-            const channelUrl = addChannelUrlHint(v.channel.url);
+            const channelUrl = addChannelUrlHint(v.channel?.url || '');
             return new PlatformVideo({
                 id: new PlatformID(PLATFORM, v.uuid, config.id),
                 name: v.name ?? "",
                 thumbnails: new Thumbnails([new Thumbnail(`${instanceBaseUrl}${v.thumbnailPath}`, 0)]),
                 author: new PlatformAuthorLink(
-                    new PlatformID(PLATFORM, v.channel.name, config.id),
-                    v.channel.displayName,
+                    new PlatformID(PLATFORM, v.channel?.name || '', config.id),
+                    v.channel?.displayName || v.channel?.name || '',
                     channelUrl,
                     getAvatarUrl(v, instanceBaseUrl)
                 ),
@@ -457,15 +538,15 @@ source.getContentDetails = function (url) {
         return null;
     }
     const contentUrl = addContentUrlHint(obj.url || `${sourceBaseUrl}/videos/watch/${obj.uuid}`);
-    const channelUrl = addChannelUrlHint(obj.channel.url);
+    const channelUrl = addChannelUrlHint(obj.channel?.url || '');
     const subtitles = processSubtitlesData(captionsData);
     const result = new PlatformVideoDetails({
         id: new PlatformID(PLATFORM, obj.uuid, config.id),
         name: obj.name,
         thumbnails: new Thumbnails([new Thumbnail(`${sourceBaseUrl}${obj.thumbnailPath}`, 0)]),
         author: new PlatformAuthorLink(
-            new PlatformID(PLATFORM, obj.channel.name, config.id),
-            obj.channel.displayName,
+            new PlatformID(PLATFORM, obj.channel?.name || '', config.id),
+            obj.channel?.displayName || obj.channel?.name || '',
             channelUrl,
             getAvatarUrl(obj, sourceBaseUrl)
         ),
@@ -623,7 +704,7 @@ class PeerTubePlaybackTracker extends PlaybackTracker {
     }
 }
 
-/* URL extractors */
+/* extractors */
 function extractVideoId(url) {
     try {
         if (!url) return null;
@@ -654,7 +735,7 @@ function extractPlaylistId(url) {
     } catch (e) { log('Error extracting PeerTube playlist ID:' + e); return null; }
 }
 
-/* getAvatarUrl (defensive) */
+/* getAvatarUrl */
 function getAvatarUrl(obj, baseUrl = plugin.config.constants.baseUrl) {
     const relativePath = [
         obj?.avatar?.path,
@@ -677,7 +758,7 @@ function loadOptionsForSetting(settingKey, transformCallback) {
     return setting?.options?.map(transformCallback) ?? [];
 }
 
-/* Safe logging */
+/* Safe logger */
 function log(s) {
     try {
         if (s === undefined) return;
@@ -686,198 +767,109 @@ function log(s) {
     } catch (e) { /* swallow */ }
 }
 
-/* getBaseUrlSafe - tries to fix missing protocol */
-function getBaseUrlSafe(url) {
+/* sleep wrapper (prefers Thread.sleep) */
+function sleepMs(ms) {
     try {
-        return getBaseUrl(url);
-    } catch (e) {
-        if (typeof url === 'string' && !/^https?:\/\//i.test(url)) {
-            try { return getBaseUrl('https://' + url); } catch (e2) { return url; }
+        if (typeof Thread !== 'undefined' && typeof Thread.sleep === 'function') {
+            Thread.sleep(ms);
+            return;
         }
-        return url;
-    }
+    } catch (e) { /* fall through */ }
+    const end = Date.now() + ms;
+    while (Date.now() < end) { /* busy-wait fallback (short) */ }
 }
 
-/* Minimal http.batch fallback if host doesn't provide it */
-if (http && typeof http.batch === 'function') {
-    // host provides it
-} else if (http) {
-    http.batch = function () {
-        const calls = [];
-        return {
-            GET: function (url, headers) { calls.push({ method: 'GET', url, headers }); return this; },
-            execute: function () {
-                return calls.map(c => {
-                    try { return http.GET(c.url, c.headers || {}); } catch (e) { return { isOk: false, code: 0, body: null }; }
-                });
+/* Wait-for-readiness with exponential backoff */
+function waitForSettingsReady(settingsCandidate, maxAttempts = 5, baseDelay = 150) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+            if (settingsCandidate && typeof settingsCandidate === 'object') return true;
+            if (typeof settingsCandidate === 'string' && settingsCandidate.trim().length) return true;
+        } catch (e) { /* ignore */ }
+        const delay = baseDelay * Math.pow(2, attempt);
+        sleepMs(delay);
+    }
+    return false;
+}
+
+/* ---------------------- source implementation (enable, saveState, flows) ---------------------- */
+
+/* enable: wait/exponential backoff then parse settings and saveState defensively */
+source.enable = function (conf, settings, saveStateStr) {
+    config = conf ?? {};
+
+    try {
+        waitForSettingsReady(settings, 5, 150);
+    } catch (e) { log('waitForSettingsReady(settings) failed: ' + e); }
+
+    try {
+        _settings = parseSettings(settings ?? {});
+    } catch (e) {
+        log("source.enable: parseSettings threw - falling back to empty settings. Error: " + e);
+        _settings = {};
+    }
+
+    SEARCH_ENGINE_OPTIONS = loadOptionsForSetting('searchEngineIndex');
+    let didSaveState = false;
+
+    if (IS_TESTING) {
+        plugin.config = { constants: { baseUrl: "https://peertube.futo.org" } };
+        _settings.searchEngineIndex = 0;
+        _settings.submitActivity = true;
+    }
+
+    state.isSearchEngineSepiaSearch = SEARCH_ENGINE_OPTIONS[_settings.searchEngineIndex] == 'Sepia Search';
+
+    try {
+        waitForSettingsReady(saveStateStr, 4, 150);
+    } catch (e) { log('waitForSettingsReady(saveStateStr) failed: ' + e); }
+
+    try {
+        if (saveStateStr && typeof saveStateStr === 'string' && saveStateStr.trim().length) {
+            try {
+                const parsed = JSON.parse(saveStateStr);
+                if (parsed) {
+                    state = { ...state, ...parsed };
+                    didSaveState = true;
+                }
+            } catch (stateErr) {
+                const s = saveStateStr;
+                const stack = (new Error()).stack || 'no-stack';
+                let b64 = '';
+                try { if (typeof btoa === 'function') b64 = btoa(s); else if (typeof Buffer !== 'undefined') b64 = Buffer.from(s).toString('base64'); } catch (e) { b64 = ''; }
+                log(`[enable][saveState parse FAILED] error='${stateErr}'`);
+                log(`STACK: ${stack}`);
+                log(`saveStateStr type=string length=${s.length} snippet(200)='${s.slice(0,200)}' base64_len=${b64.length}`);
             }
-        };
-    };
-}
-
-/* isChannelUrl / isPlaylistUrl / isContentDetailsUrl (kept, defensive) */
-source.isChannelUrl = function (url) {
-    try {
-        if (!url) return false;
-        if (url.includes('isPeertubeChannel=1')) return true;
-        const baseUrl = plugin.config.constants.baseUrl;
-        const isInstanceChannel = url.startsWith(`${baseUrl}/video-channels/`) || url.startsWith(`${baseUrl}/c/`);
-        if (isInstanceChannel) return true;
-        const u = new URL(url);
-        const { pathname, searchParams } = u;
-        if (searchParams.has('isPeertubeChannel')) return true;
-        const host = u.host;
-        const isKnownInstanceUrl = INDEX_INSTANCES.instances.includes(host);
-        const isPeerTubeChannelPath = /^\/(c|video-channels|api\/v1\/video-channels)\/[a-zA-Z0-9-_.]+(\/(video|videos)?)?\/?$/.test(pathname);
-        return isKnownInstanceUrl && isPeerTubeChannelPath;
-    } catch (e) { log('Error checking PeerTube channel URL:' + e); return false; }
-};
-source.isPlaylistUrl = function (url) {
-    try {
-        if (!url) return false;
-        if (url.includes('isPeertubePlaylist=1')) return true;
-        const baseUrl = plugin.config.constants.baseUrl;
-        const isInstancePlaylist = url.startsWith(`${baseUrl}/videos/watch/playlist/`) ||
-            url.startsWith(`${baseUrl}/w/p/`) ||
-            url.startsWith(`${baseUrl}/video-playlists/`) ||
-            (url.startsWith(`${baseUrl}/video-channels/`) && url.includes('/video-playlists/')) ||
-            (url.startsWith(`${baseUrl}/c/`) && url.includes('/video-playlists/'));
-        if (isInstancePlaylist) return true;
-        const u = new URL(url);
-        const { pathname, searchParams } = u;
-        if (searchParams.has('isPeertubePlaylist')) return true;
-        const host = u.host;
-        const isKnownInstanceUrl = INDEX_INSTANCES.instances.includes(host);
-        const isPeerTubePlaylistPath = /^\/(videos\/watch\/playlist|w\/p)\/[a-zA-Z0-9-_]+$/.test(pathname) ||
-            /^\/(video-playlists|api\/v1\/video-playlists)\/[a-zA-Z0-9-_]+$/.test(pathname) ||
-            /^\/(video-channels|c)\/[a-zA-Z0-9-_.]+\/video-playlists\/[a-zA-Z0-9-_]+$/.test(pathname);
-        return isKnownInstanceUrl && isPeerTubePlaylistPath;
-    } catch (e) { log('Error checking PeerTube playlist URL:' + e); return false; }
-};
-source.isContentDetailsUrl = function (url) {
-    try {
-        if (!url) return false;
-        if (url.includes('isPeertubeContent=1')) return true;
-        const baseUrl = plugin.config.constants.baseUrl;
-        const isInstanceContentDetails = url.startsWith(`${baseUrl}/videos/watch/`) || url.startsWith(`${baseUrl}/w/`);
-        if (isInstanceContentDetails) return true;
-        const u = new URL(url);
-        const { pathname, searchParams } = u;
-        if (searchParams.has('isPeertubeContent')) return true;
-        const host = u.host;
-        const isKnownInstanceUrl = INDEX_INSTANCES.instances.includes(host);
-        const isPeerTubeVideoPath = /^\/(videos\/(watch|embed)|w|api\/v1\/videos)\/[a-zA-Z0-9-_]+$/.test(pathname);
-        return isInstanceContentDetails || (isKnownInstanceUrl && isPeerTubeVideoPath);
-    } catch (e) { log('Error checking PeerTube content URL:' + e); return false; }
-};
-
-/* getChannel */
-source.getChannel = function (url) {
-    const handle = extractChannelId(url);
-    if (!handle) throw new ScriptException(`Failed to extract channel ID from URL: ${url}`);
-    const sourceBaseUrl = getBaseUrlSafe(url);
-    const urlWithParams = `${sourceBaseUrl}/api/v1/video-channels/${handle}`;
-    const res = http.GET(urlWithParams, {});
-    if (res.code != 200) { log("Failed to get channel", res); return null; }
-    const obj = JSON.parse(res.body);
-    const channelUrl = obj.url || `${sourceBaseUrl}/video-channels/${handle}`;
-    const channelUrlWithHint = addChannelUrlHint(channelUrl);
-    return new PlatformChannel({
-        id: new PlatformID(PLATFORM, obj.name, config.id),
-        name: obj.displayName || obj.name || handle,
-        thumbnail: getAvatarUrl(obj, sourceBaseUrl),
-        banner: null,
-        subscribers: obj.followersCount || 0,
-        description: obj.description ?? "",
-        url: channelUrlWithHint,
-        links: {},
-        urlAlternatives: [channelUrl, channelUrlWithHint]
-    });
-};
-
-/* getChannelContents */
-source.getChannelContents = function (url, type, order, filters) {
-    let sort = order;
-    if (sort === Type.Order.Chronological) sort = "-publishedAt";
-    const params = { sort };
-    const handle = extractChannelId(url);
-    const sourceBaseUrl = getBaseUrlSafe(url);
-    if (type === Type.Feed.Playlists) return source.getChannelPlaylists(url, order, filters);
-    if (type == Type.Feed.Streams) params.isLive = true;
-    else if (type == Type.Feed.Videos) params.isLive = false;
-    return getVideoPager(`/api/v1/video-channels/${handle}/videos`, params, 0, sourceBaseUrl);
-};
-source.getChannelPlaylists = function (url, order, filters) {
-    let sort = order;
-    if (sort === Type.Order.Chronological) sort = "-publishedAt";
-    const params = { sort };
-    const handle = extractChannelId(url);
-    if (!handle) return new PlaylistPager([], false);
-    const sourceBaseUrl = getBaseUrlSafe(url);
-    return getPlaylistPager(`/api/v1/video-channels/${handle}/video-playlists`, params, 0, sourceBaseUrl);
-};
-
-/* getPlaylist */
-source.getPlaylist = function (url) {
-    const playlistId = extractPlaylistId(url);
-    if (!playlistId) return null;
-    const sourceBaseUrl = getBaseUrlSafe(url);
-    const urlWithParams = `${sourceBaseUrl}/api/v1/video-playlists/${playlistId}`;
-    const res = http.GET(urlWithParams, {});
-    if (res.code != 200) { log("Failed to get playlist", res); return null; }
-    const playlist = JSON.parse(res.body);
-    const thumbnailUrl = playlist.thumbnailPath ? `${sourceBaseUrl}${playlist.thumbnailPath}` : URLS.PEERTUBE_LOGO;
-    const channelUrl = addChannelUrlHint(playlist.ownerAccount?.url);
-    const playlistUrl = addPlaylistUrlHint(`${sourceBaseUrl}/w/p/${playlist.uuid}`);
-    return new PlatformPlaylistDetails({
-        id: new PlatformID(PLATFORM, playlist.uuid, config.id),
-        name: playlist.displayName || playlist.name,
-        author: new PlatformAuthorLink(
-            new PlatformID(PLATFORM, playlist.ownerAccount?.name, config.id),
-            playlist.ownerAccount?.displayName || playlist.ownerAccount?.name || "",
-            channelUrl,
-            getAvatarUrl(playlist.ownerAccount, sourceBaseUrl)
-        ),
-        thumbnail: thumbnailUrl,
-        videoCount: playlist.videosLength || 0,
-        url: playlistUrl,
-        contents: getVideoPager(`/api/v1/video-playlists/${playlistId}/videos`, {}, 0, sourceBaseUrl, false, (playlistItem) => playlistItem.video)
-    });
-};
-
-/* getSearchCapabilities */
-source.getSearchCapabilities = () => ({
-    types: [Type.Feed.Mixed, Type.Feed.Streams, Type.Feed.Videos],
-    sorts: [Type.Order.Chronological, "publishedAt"]
-});
-
-/* searchSuggestions */
-source.searchSuggestions = function (query) { return []; };
-
-/* search */
-source.search = function (query, type, order, filters) {
-    if (source.isContentDetailsUrl(query)) return new ContentPager([source.getContentDetails(query)], false);
-    let sort = order;
-    if (sort === Type.Order.Chronological) sort = "-publishedAt";
-    const params = { search: query, sort };
-    if (type == Type.Feed.Streams) params.isLive = true;
-    else if (type == Type.Feed.Videos) params.isLive = false;
-    const prefLangs = normalizePreferredLanguages(_settings.preferredLanguages);
-    if (prefLangs.length) params.languageOneOf = prefLangs;
-    let sourceHost = '';
-    if (state.isSearchEngineSepiaSearch) {
-        params.resultType = 'videos';
-        params.nsfw = false;
-        params.sort = '-createdAt';
-        sourceHost = 'https://sepiasearch.org';
-    } else {
-        sourceHost = plugin.config.constants.baseUrl;
+        } else {
+            log('[enable] saveStateStr is empty/absent or not a string; skipping parse');
+        }
+    } catch (e) {
+        log('[enable] unexpected error while parsing saveStateStr: ' + e);
     }
-    const isSearch = true;
-    return getVideoPager('/api/v1/search/videos', params, 0, sourceHost, isSearch);
+
+    if (!didSaveState) {
+        try {
+            const primary = plugin.config.constants.baseUrl;
+            const [currentInstanceConfig] = http.batch().GET(`${primary}/api/v1/config`, {}).execute();
+            if (currentInstanceConfig && currentInstanceConfig.isOk) {
+                const serverConfig = JSON.parse(currentInstanceConfig.body);
+                state.serverVersion = serverConfig.serverVersion;
+            }
+        } catch (e) {
+            log('Failed to fetch base instance config: ' + e);
+        }
+    }
+
+    state.seenIds = state.seenIds || [];
 };
 
-/* getHome - aggregated feed across instances */
+/* saveState */
+source.saveState = function () {
+    return JSON.stringify({ serverVersion: state.serverVersion, seenIds: state.seenIds });
+};
+
+/* getHome: aggregated feed across sampled instances */
 source.getHome = function () {
     let sort = '';
     if (ServerInstanceVersionIsSameOrNewer(state.serverVersion, '3.1.0')) sort = 'best';
@@ -921,11 +913,31 @@ source.getHome = function () {
     return new PeerTubeVideoPager(final, false, '/api/v1/videos', params, 0, instances.length ? instances[0] : plugin.config.constants.baseUrl, false);
 };
 
-/* searchChannels/searchPlaylists */
+/* search, searchChannels, searchPlaylists */
+source.search = function (query, type, order, filters) {
+    if (source.isContentDetailsUrl(query)) return new ContentPager([source.getContentDetails(query)], false);
+    let sort = order;
+    if (sort === Type.Order.Chronological) sort = "-publishedAt";
+    const params = { search: query, sort };
+    if (type == Type.Feed.Streams) params.isLive = true;
+    else if (type == Type.Feed.Videos) params.isLive = false;
+    const prefLangs = normalizePreferredLanguages(_settings.preferredLanguages);
+    if (prefLangs.length) params.languageOneOf = prefLangs;
+    let sourceHost = '';
+    if (state.isSearchEngineSepiaSearch) {
+        params.resultType = 'videos';
+        params.nsfw = false;
+        params.sort = '-createdAt';
+        sourceHost = 'https://sepiasearch.org';
+    } else {
+        sourceHost = plugin.config.constants.baseUrl;
+    }
+    const isSearch = true;
+    return getVideoPager('/api/v1/search/videos', params, 0, sourceHost, isSearch);
+};
 source.searchChannels = function (query) {
     let sourceHost = state.isSearchEngineSepiaSearch ? 'https://sepiasearch.org' : plugin.config.constants.baseUrl;
-    const isSearch = true;
-    return getChannelPager('/api/v1/search/video-channels', { search: query }, 0, sourceHost, isSearch);
+    return getChannelPager('/api/v1/search/video-channels', { search: query }, 0, sourceHost, true);
 };
 source.searchPlaylists = function (query) {
     let sourceHost = state.isSearchEngineSepiaSearch ? 'https://sepiasearch.org' : plugin.config.constants.baseUrl;
@@ -938,119 +950,95 @@ source.searchPlaylists = function (query) {
     return getPlaylistPager('/api/v1/search/video-playlists', params, 0, sourceHost, true);
 };
 
-/* Helper: sleep wrapper that prefers Thread.sleep but falls back to busy-wait */
-function sleepMs(ms) {
-    try {
-        if (typeof Thread !== 'undefined' && typeof Thread.sleep === 'function') {
-            Thread.sleep(ms);
-            return;
-        }
-    } catch (e) {
-        // fall through to busy-wait fallback
-    }
-    const end = Date.now() + ms;
-    while (Date.now() < end) {
-        // small inner loop to avoid preventing micro-sleeps; deliberately empty
-    }
-}
-
-/* Retry-with-backoff routine before parsing settings/saveState
-   Attempts up to maxAttempts times; returns true if settings appear non-empty, false if not.
-*/
-function waitForSettingsReady(settingsCandidate, maxAttempts = 5, baseDelay = 150) {
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        try {
-            // If settingsCandidate is object, assume ready
-            if (settingsCandidate && typeof settingsCandidate === 'object') return true;
-            // If string and non-empty after trim -> ready
-            if (typeof settingsCandidate === 'string' && settingsCandidate.trim().length) return true;
-        } catch (e) { /* ignore */ }
-        // sleep exponential backoff
-        const delay = baseDelay * Math.pow(2, attempt);
-        sleepMs(delay);
-    }
-    return false;
-}
-
-/* enable: wait-for-settings readiness then parse defensively; also guard saveStateStr parse */
-source.enable = function (conf, settings, saveStateStr) {
-    config = conf ?? {};
-
-    try {
-        // wait for settingsCandidate to be non-empty object/string up to attempts
-        waitForSettingsReady(settings, 5, 150);
-    } catch (e) { log('waitForSettingsReady failed: ' + e); }
-
-    try {
-        _settings = parseSettings(settings ?? {});
-    } catch (e) {
-        log("source.enable: parseSettings threw - falling back to empty settings. Error: " + e);
-        _settings = {};
-    }
-
-    SEARCH_ENGINE_OPTIONS = loadOptionsForSetting('searchEngineIndex');
-    let didSaveState = false;
-
-    if (IS_TESTING) {
-        plugin.config = { constants: { baseUrl: "https://peertube.futo.org" } };
-        _settings.searchEngineIndex = 0;
-        _settings.submitActivity = true;
-    }
-
-    state.isSearchEngineSepiaSearch = SEARCH_ENGINE_OPTIONS[_settings.searchEngineIndex] == 'Sepia Search';
-
-    try {
-        // Give host a short chance to provide saveStateStr if it's being prepared
-        waitForSettingsReady(saveStateStr, 4, 150);
-    } catch (e) { log('waitForSettingsReady(saveStateStr) failed: ' + e); }
-
-    try {
-        if (saveStateStr && typeof saveStateStr === 'string' && saveStateStr.trim().length) {
-            const parsed = JSON.parse(saveStateStr);
-            if (parsed) {
-                state = { ...state, ...parsed };
-                didSaveState = true;
-            }
-        }
-    } catch (ex) {
-        log('Failed to parse saveState:' + ex);
-    }
-
-    if (!didSaveState) {
-        try {
-            const primary = plugin.config.constants.baseUrl;
-            const [currentInstanceConfig] = http.batch().GET(`${primary}/api/v1/config`, {}).execute();
-            if (currentInstanceConfig && currentInstanceConfig.isOk) {
-                const serverConfig = JSON.parse(currentInstanceConfig.body);
-                state.serverVersion = serverConfig.serverVersion;
-            }
-        } catch (e) {
-            log('Failed to fetch base instance config: ' + e);
-        }
-    }
-
-    state.seenIds = state.seenIds || [];
+/* getChannel, getChannelContents, getPlaylist - defined earlier in file patterns (kept consistent) */
+source.getChannel = function (url) {
+    const handle = extractChannelId(url);
+    if (!handle) throw new ScriptException(`Failed to extract channel ID from URL: ${url}`);
+    const sourceBaseUrl = getBaseUrlSafe(url);
+    const urlWithParams = `${sourceBaseUrl}/api/v1/video-channels/${handle}`;
+    const res = http.GET(urlWithParams, {});
+    if (res.code != 200) { log("Failed to get channel", res); return null; }
+    const obj = JSON.parse(res.body);
+    const channelUrl = obj.url || `${sourceBaseUrl}/video-channels/${handle}`;
+    const channelUrlWithHint = addChannelUrlHint(channelUrl);
+    return new PlatformChannel({
+        id: new PlatformID(PLATFORM, obj.name, config.id),
+        name: obj.displayName || obj.name || handle,
+        thumbnail: getAvatarUrl(obj, sourceBaseUrl),
+        banner: null,
+        subscribers: obj.followersCount || 0,
+        description: obj.description ?? "",
+        url: channelUrlWithHint,
+        links: {},
+        urlAlternatives: [channelUrl, channelUrlWithHint]
+    });
+};
+source.getChannelContents = function (url, type, order, filters) {
+    let sort = order;
+    if (sort === Type.Order.Chronological) sort = "-publishedAt";
+    const params = { sort };
+    const handle = extractChannelId(url);
+    const sourceBaseUrl = getBaseUrlSafe(url);
+    if (type === Type.Feed.Playlists) return source.getChannelPlaylists(url, order, filters);
+    if (type == Type.Feed.Streams) params.isLive = true;
+    else if (type == Type.Feed.Videos) params.isLive = false;
+    return getVideoPager(`/api/v1/video-channels/${handle}/videos`, params, 0, sourceBaseUrl);
+};
+source.getChannelPlaylists = function (url, order, filters) {
+    let sort = order;
+    if (sort === Type.Order.Chronological) sort = "-publishedAt";
+    const params = { sort };
+    const handle = extractChannelId(url);
+    if (!handle) return new PlaylistPager([], false);
+    const sourceBaseUrl = getBaseUrlSafe(url);
+    return getPlaylistPager(`/api/v1/video-channels/${handle}/video-playlists`, params, 0, sourceBaseUrl);
+};
+source.getPlaylist = function (url) {
+    const playlistId = extractPlaylistId(url);
+    if (!playlistId) return null;
+    const sourceBaseUrl = getBaseUrlSafe(url);
+    const urlWithParams = `${sourceBaseUrl}/api/v1/video-playlists/${playlistId}`;
+    const res = http.GET(urlWithParams, {});
+    if (res.code != 200) { log("Failed to get playlist", res); return null; }
+    const playlist = JSON.parse(res.body);
+    const thumbnailUrl = playlist.thumbnailPath ? `${sourceBaseUrl}${playlist.thumbnailPath}` : URLS.PEERTUBE_LOGO;
+    const channelUrl = addChannelUrlHint(playlist.ownerAccount?.url);
+    const playlistUrl = addPlaylistUrlHint(`${sourceBaseUrl}/w/p/${playlist.uuid}`);
+    return new PlatformPlaylistDetails({
+        id: new PlatformID(PLATFORM, playlist.uuid, config.id),
+        name: playlist.displayName || playlist.name,
+        author: new PlatformAuthorLink(
+            new PlatformID(PLATFORM, playlist.ownerAccount?.name, config.id),
+            playlist.ownerAccount?.displayName || playlist.ownerAccount?.name || "",
+            channelUrl,
+            getAvatarUrl(playlist.ownerAccount, sourceBaseUrl)
+        ),
+        thumbnail: thumbnailUrl,
+        videoCount: playlist.videosLength || 0,
+        url: playlistUrl,
+        contents: getVideoPager(`/api/v1/video-playlists/${playlistId}/videos`, {}, 0, sourceBaseUrl, false, (playlistItem) => playlistItem.video)
+    });
 };
 
-/* saveState */
-source.saveState = function () {
-    return JSON.stringify({ serverVersion: state.serverVersion, seenIds: state.seenIds });
-};
-
-/* getAvatarUrl, loadOptionsForSetting already defined above */
-
-/* getBaseUrlSafe included earlier */
-function getBaseUrlSafe(url) {
-    try { return getBaseUrl(url); } catch (e) {
-        if (typeof url === 'string' && !/^https?:\/\//i.test(url)) {
-            try { return getBaseUrl('https://' + url); } catch (e2) { return url; }
-        }
-        return url;
-    }
+/* Minimal http.batch fallback if host doesn't provide it */
+if (http && typeof http.batch === 'function') {
+    // host provides it
+} else if (http) {
+    http.batch = function () {
+        const calls = [];
+        return {
+            GET: function (url, headers) { calls.push({ method: 'GET', url, headers }); return this; },
+            execute: function () {
+                return calls.map(c => {
+                    try { return http.GET(c.url, c.headers || {}); } catch (e) { return { isOk: false, code: 0, body: null }; }
+                });
+            }
+        };
+    };
 }
 
-/* getSub-comments/getPlaylist/getChannel/getChannelContents etc. implemented above */
-
-/* Keep original INDEX_INSTANCES auto-generated list as before */
+/* Keep original automated instance list (append user ones) */
 INDEX_INSTANCES.instances = [...INDEX_INSTANCES.instances, 'poast.tv','videos.upr.fr','peertube.red'];
 INDEX_INSTANCES.instances = [...INDEX_INSTANCES.instances, "video.blinkyparts.com","vid.chaoticmira.gay","peertube.nthpyro.dev","watch.bojidar-bg.dev","ishotenedthislistbecauseitstoolong.and.dumb.com"];
+
+/* End of file */

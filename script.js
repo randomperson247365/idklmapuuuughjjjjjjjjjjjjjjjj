@@ -4,23 +4,12 @@ const source = {};
 // Plugin constants
 const PLATFORM = "PeerTube";
 const TAG = "Enhanced PeerTube";
-const PLATFORM_CLAIMTYPE = 1; // PeerTube platform claim type
 
 // Plugin state
 let config = {};
-let _settings = {};
-let instanceCache = null;
-let instanceCacheTime = 0;
-const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
-// Fallback instances if API fails
-const FALLBACK_INSTANCES = [
-    "peertube.futo.org",
-    "tube.tchncs.de",
-    "video.blender.org",
-    "peertube.social",
-    "framatube.org"
-];
+// Default instance
+const DEFAULT_INSTANCE = "peertube.futo.org";
 
 // Custom VideoPager class - REQUIRED for pagination
 class PeerTubeVideoPager extends VideoPager {
@@ -35,7 +24,7 @@ class PeerTubeVideoPager extends VideoPager {
             this.context.path,
             this.context.params,
             this.context.page,
-            this.context.sourceHost
+            this.context.instance
         );
     }
 }
@@ -43,23 +32,17 @@ class PeerTubeVideoPager extends VideoPager {
 // Plugin lifecycle methods
 source.enable = function(conf, settings, saveStateStr) {
     config = conf ?? {};
-    _settings = settings ?? {};
-    console.log(`${TAG}: Plugin enabled with settings:`, JSON.stringify(_settings));
-};
-
-source.disable = function() {
-    console.log(`${TAG}: Plugin disabled`);
+    console.log(`${TAG}: Plugin enabled`);
 };
 
 // Home feed
 source.getHome = function(continuationToken) {
     console.log(`${TAG}: Getting home feed`);
     const page = continuationToken ? parseInt(continuationToken) : 0;
-    const showRemote = _settings.showRemoteVideos === "true";
     return getVideoPager('/api/v1/videos', { 
         sort: "-publishedAt",
-        isLocal: showRemote ? undefined : true
-    }, page);
+        nsfw: "both"
+    }, page, DEFAULT_INSTANCE);
 };
 
 // Search suggestions (not implemented for PeerTube)
@@ -70,8 +53,8 @@ source.searchSuggestions = function(query) {
 // Search capabilities
 source.getSearchCapabilities = function() {
     return {
-        types: ["Feeds"],
-        sorts: ["publishedAt", "-publishedAt", "views", "-views"]
+        types: [Type.Feed.Mixed],
+        sorts: [Type.Order.Chronological]
     };
 };
 
@@ -79,24 +62,22 @@ source.getSearchCapabilities = function() {
 source.search = function(query, type, order, filters, continuationToken) {
     console.log(`${TAG}: Searching for: ${query}`);
     const page = continuationToken ? parseInt(continuationToken) : 0;
-    const sort = order || "-publishedAt";
-    const showRemote = _settings.showRemoteVideos === "true";
     
     return getVideoPager('/api/v1/search/videos', { 
         search: query, 
-        sort: sort,
-        isLocal: showRemote ? undefined : true
-    }, page);
+        sort: "-publishedAt",
+        nsfw: "both"
+    }, page, DEFAULT_INSTANCE);
 };
 
 // Channel URL detection
 source.isChannelUrl = function(url) {
-    return /\/c\/|\/a\/|\/video-channels\//.test(url);
+    return url.includes("/c/") || url.includes("/a/") || url.includes("/video-channels/");
 };
 
 // Content URL detection
 source.isContentDetailsUrl = function(url) {
-    return /\/w\/|\/videos\/watch\//.test(url);
+    return url.includes("/w/") || url.includes("/videos/watch/");
 };
 
 // Get channel details
@@ -107,8 +88,8 @@ source.getChannel = function(url) {
     if (!channelMatch) return null;
     
     const channelName = channelMatch[1] || channelMatch[2];
-    const baseUrl = extractBaseUrl(url) || getBaseInstance();
-    const apiUrl = `https://${baseUrl}/api/v1/video-channels/${channelName}`;
+    const instance = extractInstance(url) || DEFAULT_INSTANCE;
+    const apiUrl = `https://${instance}/api/v1/video-channels/${channelName}`;
     
     try {
         const response = Http.GET(apiUrl, {}, false);
@@ -117,10 +98,10 @@ source.getChannel = function(url) {
         const channel = JSON.parse(response.body);
         
         return new PlatformChannel({
-            id: new PlatformID(PLATFORM, channel.name, config.id, PLATFORM_CLAIMTYPE),
+            id: new PlatformID(PLATFORM, channel.name, config.id),
             name: channel.displayName,
-            thumbnail: channel.avatar ? `https://${baseUrl}${channel.avatar.path}` : null,
-            banner: channel.banner ? `https://${baseUrl}${channel.banner.path}` : null,
+            thumbnail: channel.avatar ? `https://${instance}${channel.avatar.path}` : "",
+            banner: channel.banner ? `https://${instance}${channel.banner.path}` : "",
             subscribers: channel.followersCount || 0,
             description: channel.description || "",
             url: url,
@@ -137,15 +118,16 @@ source.getChannelContents = function(url, type, order, filters, continuationToke
     console.log(`${TAG}: Getting channel contents from: ${url}`);
     
     const channelMatch = url.match(/\/c\/([^\/]+)|\/video-channels\/([^\/]+)/);
-    if (!channelMatch) return new VideoPager([], false);
+    if (!channelMatch) return new PeerTubeVideoPager([], false, {});
     
     const channelName = channelMatch[1] || channelMatch[2];
-    const baseUrl = extractBaseUrl(url) || getBaseInstance();
+    const instance = extractInstance(url) || DEFAULT_INSTANCE;
     const page = continuationToken ? parseInt(continuationToken) : 0;
     
     return getVideoPager(`/api/v1/video-channels/${channelName}/videos`, {
-        sort: order || "-publishedAt"
-    }, page, baseUrl);
+        sort: "-publishedAt",
+        nsfw: "both"
+    }, page, instance);
 };
 
 // Get video details
@@ -158,8 +140,8 @@ source.getContentDetails = function(url) {
         return null;
     }
 
-    const baseUrl = extractBaseUrl(url) || getBaseInstance();
-    const apiUrl = `https://${baseUrl}/api/v1/videos/${videoId}`;
+    const instance = extractInstance(url) || DEFAULT_INSTANCE;
+    const apiUrl = `https://${instance}/api/v1/videos/${videoId}`;
     
     try {
         const response = Http.GET(apiUrl, {}, false);
@@ -175,53 +157,60 @@ source.getContentDetails = function(url) {
         
         // Add HLS sources if available
         if (video.streamingPlaylists && video.streamingPlaylists.length > 0) {
-            video.streamingPlaylists.forEach(playlist => {
+            for (const playlist of video.streamingPlaylists) {
                 if (playlist.type === 1 && playlist.playlistUrl) {
                     videoSources.push(new HLSSource({
                         name: "HLS Stream",
                         url: playlist.playlistUrl,
-                        duration: video.duration,
-                        priority: true
+                        duration: video.duration
                     }));
                 }
-            });
+            }
         }
         
         // Add direct file sources
         if (video.files && video.files.length > 0) {
-            video.files.forEach(file => {
+            for (const file of video.files) {
                 if (file.fileUrl) {
+                    const height = file.resolution?.height || 0;
+                    const width = file.resolution?.width || 0;
+                    const label = file.resolution?.label || "Direct";
+                    
                     videoSources.push(new VideoUrlSource({
                         url: file.fileUrl,
-                        quality: file.resolution?.label || "Unknown",
-                        name: file.resolution?.label || "Direct",
-                        width: file.resolution?.width || 0,
-                        height: file.resolution?.height || 0,
+                        quality: label,
+                        name: label,
+                        width: width,
+                        height: height,
                         container: "video/mp4",
                         duration: video.duration
                     }));
                 }
-            });
+            }
         }
 
-        // Build thumbnails array
+        // Build thumbnails
         const thumbnails = [];
         if (video.thumbnailPath) {
-            thumbnails.push(new Thumbnail(`https://${baseUrl}${video.thumbnailPath}`, 0));
+            thumbnails.push(new Thumbnail(`https://${instance}${video.thumbnailPath}`, 0));
         }
         if (video.previewPath) {
-            thumbnails.push(new Thumbnail(`https://${baseUrl}${video.previewPath}`, 1));
+            thumbnails.push(new Thumbnail(`https://${instance}${video.previewPath}`, 1));
         }
 
+        // Build author/channel info
+        const channelUrl = `https://${instance}/c/${video.channel.name}`;
+        const channelAvatar = video.channel.avatar ? `https://${instance}${video.channel.avatar.path}` : "";
+
         return new PlatformVideoDetails({
-            id: new PlatformID(PLATFORM, video.uuid, config.id, PLATFORM_CLAIMTYPE),
+            id: new PlatformID(PLATFORM, video.uuid, config.id),
             name: video.name,
             thumbnails: new Thumbnails(thumbnails),
             author: new PlatformAuthorLink(
-                new PlatformID(PLATFORM, video.channel.name, config.id, PLATFORM_CLAIMTYPE),
+                new PlatformID(PLATFORM, video.channel.name, config.id),
                 video.channel.displayName,
-                `https://${baseUrl}/c/${video.channel.name}`,
-                video.channel.avatar ? `https://${baseUrl}${video.channel.avatar.path}` : null
+                channelUrl,
+                channelAvatar
             ),
             uploadDate: Math.floor(new Date(video.publishedAt).getTime() / 1000),
             duration: video.duration || 0,
@@ -239,94 +228,61 @@ source.getContentDetails = function(url) {
     }
 };
 
-// Helper function to get video sources (called by getContentDetails)
-source.getVideoSources = function(url) {
-    const details = source.getContentDetails(url);
-    return details ? details.video : new VideoSourceDescriptor([]);
-};
-
 // Main video fetching function
-function getVideoPager(path, params, page, sourceHost) {
-    const instances = getActiveInstances();
-    const videosPerInstance = parseInt(_settings.contentMixRatio) || 3;
-    const allVideos = [];
-    let hasMoreContent = false;
-    
-    // Fetch from multiple instances if enabled
-    if (instances.length > 1 && page === 0 && !sourceHost) {
-        instances.forEach(instance => {
-            try {
-                const result = fetchVideosFromInstance(instance, path, params, 0, videosPerInstance);
-                allVideos.push(...result.videos);
-                hasMoreContent = hasMoreContent || result.hasMore;
-            } catch (error) {
-                console.log(`${TAG}: Failed to fetch from ${instance}: ${error.message}`);
-            }
-        });
-        
-        // Shuffle videos for variety
-        shuffleArray(allVideos);
-    } else {
-        // Single instance fetch (for pagination or specific source)
-        const host = sourceHost || instances[0] || getBaseInstance();
-        const result = fetchVideosFromInstance(host, path, params, page || 0, 20);
-        allVideos.push(...result.videos);
-        hasMoreContent = result.hasMore;
-    }
-    
-    const context = {
-        path: path,
-        params: params,
-        page: page || 0,
-        sourceHost: sourceHost
-    };
-    
-    return new PeerTubeVideoPager(allVideos, hasMoreContent, context);
-}
-
-// Fetch videos from a specific instance
-function fetchVideosFromInstance(host, path, params, page, count) {
+function getVideoPager(path, params, page, instance) {
+    const inst = instance || DEFAULT_INSTANCE;
+    const count = 20;
     const start = page * count;
     
     const queryParams = { 
-        ...params, 
         start: start, 
-        count: count,
-        nsfw: "both"
+        count: count
     };
     
-    // Filter out undefined values
-    Object.keys(queryParams).forEach(key => {
-        if (queryParams[key] === undefined || queryParams[key] === null) {
-            delete queryParams[key];
+    // Add params
+    for (const key in params) {
+        if (params[key] !== undefined && params[key] !== null) {
+            queryParams[key] = params[key];
         }
-    });
+    }
     
     const queryString = Object.keys(queryParams)
         .map(key => `${key}=${encodeURIComponent(queryParams[key])}`)
         .join('&');
     
-    const url = `https://${host}${path}?${queryString}`;
+    const url = `https://${inst}${path}?${queryString}`;
     
     console.log(`${TAG}: Fetching from: ${url}`);
     
     try {
         const response = Http.GET(url, {}, false);
         if (!response.isOk) {
-            console.log(`${TAG}: Failed to fetch videos from ${url}, status: ${response.code}`);
-            return { videos: [], hasMore: false };
+            console.log(`${TAG}: Failed to fetch videos, status: ${response.code}`);
+            return new PeerTubeVideoPager([], false, {});
         }
         
         const data = JSON.parse(response.body);
-        const videos = (data.data || []).map(video => convertToPlatformVideo(video, host));
+        const videos = [];
         
-        return {
-            videos: videos,
-            hasMore: data.total > (start + count)
+        if (data.data && Array.isArray(data.data)) {
+            for (const video of data.data) {
+                videos.push(convertToPlatformVideo(video, inst));
+            }
+        }
+        
+        const hasMore = data.total > (start + count);
+        
+        const context = {
+            path: path,
+            params: params,
+            page: page,
+            instance: inst
         };
+        
+        return new PeerTubeVideoPager(videos, hasMore, context);
     } catch (error) {
         console.log(`${TAG}: Error fetching videos: ${error.message}`);
-        return { videos: [], hasMore: false };
+        return new PeerTubeVideoPager([], false, {});
     }
 }
 
@@ -342,15 +298,18 @@ function convertToPlatformVideo(video, instance) {
         thumbnails.push(new Thumbnail(`${baseUrl}${video.previewPath}`, 1));
     }
     
+    const channelUrl = `${baseUrl}/c/${video.channel.name}`;
+    const channelAvatar = video.channel.avatar ? `${baseUrl}${video.channel.avatar.path}` : "";
+    
     return new PlatformVideo({
-        id: new PlatformID(PLATFORM, video.uuid, config.id, PLATFORM_CLAIMTYPE),
+        id: new PlatformID(PLATFORM, video.uuid, config.id),
         name: video.name,
         thumbnails: new Thumbnails(thumbnails),
         author: new PlatformAuthorLink(
-            new PlatformID(PLATFORM, video.channel.name, config.id, PLATFORM_CLAIMTYPE),
+            new PlatformID(PLATFORM, video.channel.name, config.id),
             video.channel.displayName,
-            `${baseUrl}/c/${video.channel.name}`,
-            video.channel.avatar ? `${baseUrl}${video.channel.avatar.path}` : null
+            channelUrl,
+            channelAvatar
         ),
         uploadDate: Math.floor(new Date(video.publishedAt).getTime() / 1000),
         duration: video.duration || 0,
@@ -360,71 +319,7 @@ function convertToPlatformVideo(video, instance) {
     });
 }
 
-// Get active instances based on settings
-function getActiveInstances() {
-    const instances = [];
-    
-    // Add primary instance
-    const primary = _settings.primaryInstance || "peertube.futo.org";
-    instances.push(primary);
-    
-    // Add additional instances
-    if (_settings.additionalInstances) {
-        const additional = _settings.additionalInstances.split(',')
-            .map(i => i.trim())
-            .filter(i => i && !instances.includes(i));
-        instances.push(...additional);
-    }
-    
-    // Add random instances if enabled (check for string "true")
-    if (_settings.enableRandomInstances === "true") {
-        const randomInstances = getRandomInstances();
-        randomInstances.forEach(instance => {
-            if (!instances.includes(instance)) {
-                instances.push(instance);
-            }
-        });
-    }
-    
-    return instances.length > 0 ? instances : FALLBACK_INSTANCES;
-}
-
-// Get random instances (with caching)
-function getRandomInstances() {
-    // Check cache (settings are strings, so check for "true")
-    if (_settings.cacheRandomInstances === "true" && instanceCache && 
-        (Date.now() - instanceCacheTime) < CACHE_DURATION) {
-        return instanceCache;
-    }
-    
-    try {
-        // Fetch instance list from PeerTube directory
-        const response = Http.GET("https://instances.joinpeertube.org/api/v1/instances?count=100&healthy=true", {}, false);
-        if (response.isOk) {
-            const data = JSON.parse(response.body);
-            const instances = data.data
-                .filter(i => i.totalVideos > 100)
-                .map(i => i.host)
-                .slice(0, parseInt(_settings.randomInstanceCount) || 3);
-            
-            // Update cache
-            instanceCache = instances;
-            instanceCacheTime = Date.now();
-            
-            return instances;
-        }
-    } catch (error) {
-        console.log(`${TAG}: Failed to fetch random instances: ${error.message}`);
-    }
-    
-    return [];
-}
-
 // Utility functions
-function getBaseInstance() {
-    return _settings.primaryInstance || config.constants?.baseUrl?.replace('https://', '') || "peertube.futo.org";
-}
-
 function extractVideoId(url) {
     const patterns = [
         /\/w\/([a-zA-Z0-9-]+)/,
@@ -439,21 +334,13 @@ function extractVideoId(url) {
     return null;
 }
 
-function extractBaseUrl(url) {
+function extractInstance(url) {
     try {
         const match = url.match(/https?:\/\/([^\/]+)/);
         return match ? match[1] : null;
     } catch (error) {
         return null;
     }
-}
-
-function shuffleArray(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-    }
-    return array;
 }
 
 // Log plugin loaded

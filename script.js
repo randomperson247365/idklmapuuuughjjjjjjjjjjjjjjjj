@@ -35,6 +35,10 @@ source.enable = function(conf, settings, saveStateStr) {
     console.log(`${TAG}: Plugin enabled`);
 };
 
+source.disable = function() {
+    console.log(`${TAG}: Plugin disabled`);
+};
+
 // Home feed
 source.getHome = function(continuationToken) {
     console.log(`${TAG}: Getting home feed`);
@@ -48,14 +52,6 @@ source.getHome = function(continuationToken) {
 // Search suggestions (not implemented for PeerTube)
 source.searchSuggestions = function(query) {
     return [];
-};
-
-// Search capabilities
-source.getSearchCapabilities = function() {
-    return {
-        types: [Type.Feed.Mixed],
-        sorts: [Type.Order.Chronological]
-    };
 };
 
 // Search implementation
@@ -93,9 +89,22 @@ source.getChannel = function(url) {
     
     try {
         const response = Http.GET(apiUrl, {}, false);
-        if (!response.isOk) return null;
+        if (!response.isOk) {
+            console.log(`${TAG}: Failed to get channel, status: ${response.code}`);
+            return null;
+        }
         
-        const channel = JSON.parse(response.body);
+        // Log raw response for debugging
+        console.log(`${TAG}: Raw channel response length: ${response.body ? response.body.length : 0}`);
+        
+        let channel;
+        try {
+            channel = JSON.parse(response.body);
+        } catch (parseError) {
+            console.log(`${TAG}: Failed to parse channel JSON: ${parseError.message}`);
+            console.log(`${TAG}: Response body preview: ${response.body ? response.body.substring(0, 100) : 'empty'}`);
+            return null;
+        }
         
         return new PlatformChannel({
             id: new PlatformID(PLATFORM, channel.name, config.id),
@@ -150,7 +159,17 @@ source.getContentDetails = function(url) {
             return null;
         }
         
-        const video = JSON.parse(response.body);
+        // Log raw response for debugging
+        console.log(`${TAG}: Raw video response length: ${response.body ? response.body.length : 0}`);
+        
+        let video;
+        try {
+            video = JSON.parse(response.body);
+        } catch (parseError) {
+            console.log(`${TAG}: Failed to parse video JSON: ${parseError.message}`);
+            console.log(`${TAG}: Response body preview: ${response.body ? response.body.substring(0, 100) : 'empty'}`);
+            return null;
+        }
         
         // Build video sources
         const videoSources = [];
@@ -228,7 +247,7 @@ source.getContentDetails = function(url) {
     }
 };
 
-// Main video fetching function
+// Main video fetching function with improved error handling
 function getVideoPager(path, params, page, instance) {
     const inst = instance || DEFAULT_INSTANCE;
     const count = 20;
@@ -256,17 +275,50 @@ function getVideoPager(path, params, page, instance) {
     
     try {
         const response = Http.GET(url, {}, false);
+        
+        // Check if response is OK
         if (!response.isOk) {
             console.log(`${TAG}: Failed to fetch videos, status: ${response.code}`);
             return new PeerTubeVideoPager([], false, {});
         }
         
-        const data = JSON.parse(response.body);
-        const videos = [];
+        // Log raw response for debugging
+        console.log(`${TAG}: Response status: ${response.code}, body length: ${response.body ? response.body.length : 0}`);
         
-        if (data.data && Array.isArray(data.data)) {
-            for (const video of data.data) {
+        // Check if response body exists
+        if (!response.body) {
+            console.log(`${TAG}: Empty response body`);
+            return new PeerTubeVideoPager([], false, {});
+        }
+        
+        // Try to parse JSON
+        let data;
+        try {
+            data = JSON.parse(response.body);
+        } catch (parseError) {
+            console.log(`${TAG}: JSON parse error: ${parseError.message}`);
+            console.log(`${TAG}: Response body preview: ${response.body.substring(0, 200)}`);
+            return new PeerTubeVideoPager([], false, {});
+        }
+        
+        // Validate data structure
+        if (!data || typeof data !== 'object') {
+            console.log(`${TAG}: Invalid data type: ${typeof data}`);
+            return new PeerTubeVideoPager([], false, {});
+        }
+        
+        if (!data.data || !Array.isArray(data.data)) {
+            console.log(`${TAG}: Invalid data structure - missing or non-array data field`);
+            console.log(`${TAG}: Data keys: ${Object.keys(data).join(', ')}`);
+            return new PeerTubeVideoPager([], false, {});
+        }
+        
+        const videos = [];
+        for (const video of data.data) {
+            try {
                 videos.push(convertToPlatformVideo(video, inst));
+            } catch (conversionError) {
+                console.log(`${TAG}: Error converting video: ${conversionError.message}`);
             }
         }
         
@@ -282,12 +334,24 @@ function getVideoPager(path, params, page, instance) {
         return new PeerTubeVideoPager(videos, hasMore, context);
     } catch (error) {
         console.log(`${TAG}: Error fetching videos: ${error.message}`);
+        console.log(`${TAG}: Error stack: ${error.stack}`);
         return new PeerTubeVideoPager([], false, {});
     }
 }
 
-// Convert PeerTube video object to Grayjay PlatformVideo
+// Convert PeerTube video object to Grayjay PlatformVideo with validation
 function convertToPlatformVideo(video, instance) {
+    // Validate required fields
+    if (!video || !video.uuid || !video.name) {
+        console.log(`${TAG}: Invalid video object - missing required fields`);
+        throw new Error("Invalid video object");
+    }
+    
+    if (!video.channel || !video.channel.name) {
+        console.log(`${TAG}: Invalid video object - missing channel info`);
+        throw new Error("Invalid channel info");
+    }
+    
     const baseUrl = `https://${instance}`;
     
     const thumbnails = [];
@@ -307,11 +371,11 @@ function convertToPlatformVideo(video, instance) {
         thumbnails: new Thumbnails(thumbnails),
         author: new PlatformAuthorLink(
             new PlatformID(PLATFORM, video.channel.name, config.id),
-            video.channel.displayName,
+            video.channel.displayName || video.channel.name,
             channelUrl,
             channelAvatar
         ),
-        uploadDate: Math.floor(new Date(video.publishedAt).getTime() / 1000),
+        uploadDate: video.publishedAt ? Math.floor(new Date(video.publishedAt).getTime() / 1000) : 0,
         duration: video.duration || 0,
         viewCount: video.views || 0,
         url: `${baseUrl}/w/${video.uuid}`,
@@ -319,8 +383,12 @@ function convertToPlatformVideo(video, instance) {
     });
 }
 
-// Utility functions
+// Utility functions with better error handling
 function extractVideoId(url) {
+    if (!url || typeof url !== 'string') {
+        return null;
+    }
+    
     const patterns = [
         /\/w\/([a-zA-Z0-9-]+)/,
         /\/videos\/watch\/([a-zA-Z0-9-]+)/,
@@ -329,16 +397,23 @@ function extractVideoId(url) {
     
     for (const pattern of patterns) {
         const match = url.match(pattern);
-        if (match) return match[1];
+        if (match && match[1]) {
+            return match[1];
+        }
     }
     return null;
 }
 
 function extractInstance(url) {
+    if (!url || typeof url !== 'string') {
+        return null;
+    }
+    
     try {
         const match = url.match(/https?:\/\/([^\/]+)/);
         return match ? match[1] : null;
     } catch (error) {
+        console.log(`${TAG}: Error extracting instance: ${error.message}`);
         return null;
     }
 }

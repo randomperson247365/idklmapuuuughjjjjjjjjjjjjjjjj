@@ -4,11 +4,11 @@
   "author": "Enhanced PeerTube Developer",
   "authorUrl": "https://github.com/randomperson247365",
   "platformUrl": "https://joinpeertube.org/",
-  "sourceUrl": "https://raw.githubusercontent.com/YOUR_USER/YOUR_REPO/main/config.json",
-  "repositoryUrl": "https://github.com/YOUR_USER/YOUR_REPO",
-  "scriptUrl": "https://raw.githubusercontent.com/YOUR_USER/YOUR_REPO/main/script.js",
-  "version": 31,
-  "iconUrl": "https://raw.githubusercontent.com/YOUR_USER/YOUR_REPO/main/icon.png",
+  "sourceUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/config.json",
+  "repositoryUrl": "https://github.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj",
+  "scriptUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/script.js",
+  "version": 32,
+  "iconUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/icon.png",
   "id": "enhanced-peertube-multi-instance",
   "scriptSignature": "",
   "scriptPublicKey": "",
@@ -21,6 +21,10 @@
       "Robust parsing for settings in multiple shapes (string/array/object)",
       "Instance URL normalization (auto-adds https://)",
       "Persistent seen-IDs and per-channel caps"
+    ],
+    "32": [
+      "Skip and cache failing instances (cooldown), persist unhealthy hosts",
+      "Avoid retrying fake/broken instances and fall back to healthy ones"
     ]
   },
   "constants": {
@@ -30,7 +34,7 @@
     {
       "variable": "instancesList",
       "name": "PeerTube Instances",
-      "description": "Comma-separated list of PeerTube instance base URLs (you can enter domain names and plugin will add https://). Edit here—no reinstall needed.",
+      "description": "Comma-separated list of PeerTube instance base URLs to use. You can enter bare domains (plugin will add https://) or full URLs.",
       "type": "Text",
       "default": "https://peertube.futo.org"
     },

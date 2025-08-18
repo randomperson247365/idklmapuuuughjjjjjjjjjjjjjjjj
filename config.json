@@ -1,30 +1,26 @@
 {
-  "name": "PeerTube (Enhanced Multi eat pant-Instancee)",
-  "description": "PeerTube plugin with multi-instance support, dedupe, random sampling, and language prefs (merged repo links).",
+  "name": "PeerTube (Enhanced Multi-Instance)",
+  "description": "PeerTube plugin with multi-instance support, dedupe, random sampling, language prefs, and persistent seen-IDs.",
   "author": "Enhanced PeerTube Developer",
   "authorUrl": "https://github.com/randomperson247365",
   "platformUrl": "https://joinpeertube.org/",
-  "sourceUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/config.json",
-  "repositoryUrl": "https://github.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj",
-  "scriptUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/script.js",
-  "version": 27,
-  "iconUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/icon.png",
-  "id": "enhanced-peertube-multi-instanceass",
+  "sourceUrl": "https://raw.githubusercontent.com/YOUR_USER/YOUR_REPO/main/config.json",
+  "repositoryUrl": "https://github.com/YOUR_USER/YOUR_REPO",
+  "scriptUrl": "https://raw.githubusercontent.com/YOUR_USER/YOUR_REPO/main/script.js",
+  "version": 31,
+  "iconUrl": "https://raw.githubusercontent.com/YOUR_USER/YOUR_REPO/main/icon.png",
+  "id": "enhanced-peertube-multi-instance",
   "scriptSignature": "",
   "scriptPublicKey": "",
   "packages": ["Http"],
   "allowEval": false,
   "allowUrls": ["everywhere"],
   "changelog": {
-    "25": [
-      "Add multi-instance support (editable in settings without reinstall)",
-      "Add random instance sampling for the home feed",
-      "Add deduplication and max-per-channel limiting to reduce repeats",
-      "Add preferred languages setting (client-side filtering + best-effort server param)",
-      "Persist recent seen video IDs to reduce repeat items across reloads"
-    ],
-    "26": [
-      "Merged repository/script links from provided repo for developer testing"
+    "31": [
+      "Return typed PlatformVideo items and guarantee contentType numeric",
+      "Robust parsing for settings in multiple shapes (string/array/object)",
+      "Instance URL normalization (auto-adds https://)",
+      "Persistent seen-IDs and per-channel caps"
     ]
   },
   "constants": {
@@ -34,7 +30,7 @@
     {
       "variable": "instancesList",
       "name": "PeerTube Instances",
-      "description": "Comma-separated list of PeerTube instance base URLs to use (e.g. https://peertube.example.org,https://another.instance). Edit here—no reinstall needed.",
+      "description": "Comma-separated list of PeerTube instance base URLs (you can enter domain names and plugin will add https://). Edit here—no reinstall needed.",
       "type": "Text",
       "default": "https://peertube.futo.org"
     },
@@ -43,26 +39,26 @@
       "name": "Randomize Instances",
       "description": "If enabled, the home feed will sample random instances from the configured list.",
       "type": "Boolean",
-      "default": "false"
+      "default": false
     },
     {
       "variable": "instanceSampleSize",
       "name": "Instances Sample Size",
-      "description": "How many instances to sample when building the home feed. (Numeric, default 3)",
-      "type": "Text",
-      "default": "3"
+      "description": "How many instances to sample when building the home feed.",
+      "type": "Number",
+      "default": 3
     },
     {
       "variable": "maxPerChannel",
       "name": "Max videos per channel",
-      "description": "Maximum number of videos from the same channel in an aggregated feed page (default 2).",
-      "type": "Text",
-      "default": "2"
+      "description": "Maximum number of videos from the same channel in an aggregated feed page.",
+      "type": "Number",
+      "default": 2
     },
     {
       "variable": "preferredLanguages",
       "name": "Preferred Languages",
-      "description": "Comma-separated language codes to prefer (e.g. en,fr,es). Used client-side (and best-effort server param).",
+      "description": "Comma-separated language codes to prefer (e.g. en,fr,es). Used client-side for filtering.",
       "type": "Text",
       "default": ""
     },
@@ -70,15 +66,15 @@
       "variable": "seenMax",
       "name": "Recent Seen Limit",
       "description": "Number of recent video IDs to remember to avoid repeats across short sessions.",
-      "type": "Text",
-      "default": "500"
+      "type": "Number",
+      "default": 500
     },
     {
       "variable": "submitActivity",
       "name": "Report Views",
       "description": "Report viewing activity to PeerTube instances.",
       "type": "Boolean",
-      "default": "true"
+      "default": true
     }
   ]
 }

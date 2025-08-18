@@ -1,4 +1,9 @@
 log("=== PeerTube Multi-Instance Plugin v27 loaded ===");
+function ServerInstanceVersionIsSameOrNewer(current, required) {
+    // TODO: real version compare if needed
+    // For now, always succeed to avoid ReferenceError
+    return true;
+}
 
 // PeerTubeScript.js - Full updated plugin
 // Features:

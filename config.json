@@ -1,5 +1,5 @@
 {
-  "name": "PeerTube (Enhanced Multi-Instance)",
+  "name": "PeerTube (Enhanced Multi eat pant-Instance)",
   "description": "PeerTube plugin with multi-instance support, dedupe, random sampling, and language prefs (merged repo links).",
   "author": "Enhanced PeerTube Developer",
   "authorUrl": "https://github.com/randomperson247365",
@@ -7,7 +7,7 @@
   "sourceUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/config.json",
   "repositoryUrl": "https://github.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj",
   "scriptUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/script.js",
-  "version": 26,
+  "version": 27,
   "iconUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/icon.png",
   "id": "enhanced-peertube-multi-instance",
   "scriptSignature": "",

@@ -1,3 +1,5 @@
+log("=== PeerTube Multi-Instance Plugin v27 loaded ===");
+
 // PeerTubeScript.js - Full updated plugin
 // Features:
 // - Detailed, defensive parseSettings with diagnostic logs

@@ -7,6 +7,51 @@
 // - Safe saveState parsing with diagnostics
 // - Full Pagers / Media handling / Playback tracker etc.
 
+// ===== JSON.parse instrumentation shim (place at top of file) =====
+// Purpose: log the exact string passed to JSON.parse when it throws, plus stack/snippet/base64 length.
+// Behavior: logs and rethrows (preserves original exception flow).
+(function() {
+    try {
+        if (typeof JSON !== 'undefined' && typeof JSON.parse === 'function') {
+            const _origJSONParse = JSON.parse;
+            JSON.parse = function(input) {
+                try {
+                    return _origJSONParse.call(JSON, input);
+                } catch (err) {
+                    try {
+                        // Build diagnostics
+                        const stack = (new Error()).stack || 'no-stack';
+                        const type = typeof input;
+                        const length = (typeof input === 'string') ? input.length : undefined;
+                        const trimmed = (typeof input === 'string') ? (input.length > 1024 ? input.slice(0,1024) + '...' : input) : String(input);
+                        let b64 = '';
+                        try {
+                            if (typeof btoa === 'function') b64 = btoa(input);
+                            else if (typeof Buffer !== 'undefined' && typeof input === 'string') b64 = Buffer.from(input).toString('base64');
+                        } catch (e) { b64 = ''; }
+                        log(`[JSON.parse SHIM][PARSE FAILED] error='${err}'`);
+                        log(`STACK: ${stack}`);
+                        log(`ARG TYPE=${type} LENGTH=${length}`);
+                        log(`SNIPPET(1k): ${trimmed}`);
+                        log(`BASE64_LEN: ${b64.length}`);
+                    } catch (logErr) {
+                        try { bridge.log('[JSON.parse SHIM] failed to log diagnostics: ' + logErr); } catch (_) {}
+                    }
+                    // rethrow to preserve original behavior (so existing try/catch still works)
+                    throw err;
+                }
+            };
+            // self-note for debugging
+            try { log('[JSON.parse SHIM] installed'); } catch (_) {}
+        } else {
+            try { log('[JSON.parse SHIM] JSON.parse not found'); } catch (_) {}
+        }
+    } catch (e) {
+        try { bridge.log('[JSON.parse SHIM] install failed: ' + e); } catch (_) {}
+    }
+})();
+
+
 const PLATFORM = "PeerTube";
 let config = {};
 let _settings = {};

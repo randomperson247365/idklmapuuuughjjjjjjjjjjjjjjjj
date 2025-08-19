@@ -1,59 +1,84 @@
 {
-  "name": "Enhanced PeerTube Multi-Instance",
-  "description": "Improved PeerTube plugin supporting multiple instances and random video selection",
+  "name": "PeerTube (Enhanced Multi-Instance)",
+  "description": "PeerTube plugin with multi-instance support, dedupe, random sampling, and language prefs (merged repo links).",
   "author": "Enhanced PeerTube Developer",
   "authorUrl": "https://github.com/randomperson247365",
+  "platformUrl": "https://joinpeertube.org/",
   "sourceUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/config.json",
   "repositoryUrl": "https://github.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj",
   "scriptUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/script.js",
-  "version": 32,
+  "version": 26,
   "iconUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/icon.png",
   "id": "enhanced-peertube-multi-instance",
+  "scriptSignature": "",
+  "scriptPublicKey": "",
   "packages": ["Http"],
   "allowEval": false,
-  "allowUrls": ["https://*", "http://*"],
+  "allowUrls": ["everywhere"],
+  "changelog": {
+    "25": [
+      "Add multi-instance support (editable in settings without reinstall)",
+      "Add random instance sampling for the home feed",
+      "Add deduplication and max-per-channel limiting to reduce repeats",
+      "Add preferred languages setting (client-side filtering + best-effort server param)",
+      "Persist recent seen video IDs to reduce repeat items across reloads"
+    ],
+    "26": [
+      "Merged repository/script links from provided repo for developer testing"
+    ]
+  },
+  "constants": {
+    "baseUrl": "https://peertube.futo.org"
+  },
   "settings": [
     {
       "variable": "instancesList",
+      "name": "PeerTube Instances",
+      "description": "Comma-separated list of PeerTube instance base URLs to use (e.g. https://peertube.example.org,https://another.instance). Edit here—no reinstall needed.",
       "type": "Text",
-      "default": "https://peertube.futo.org",
-      "label": "Instances (comma separated)"
+      "default": "https://peertube.futo.org"
     },
     {
       "variable": "randomizeInstances",
+      "name": "Randomize Instances",
+      "description": "If enabled, the home feed will sample random instances from the configured list.",
       "type": "Boolean",
-      "default": true,
-      "label": "Randomize instance order"
+      "default": "false"
     },
     {
       "variable": "instanceSampleSize",
-      "type": "Number",
-      "default": 3,
-      "label": "Number of instances to sample"
+      "name": "Instances Sample Size",
+      "description": "How many instances to sample when building the home feed. (Numeric, default 3)",
+      "type": "Text",
+      "default": "3"
     },
     {
       "variable": "maxPerChannel",
-      "type": "Number",
-      "default": 2,
-      "label": "Max videos per channel"
-    },
-    {
-      "variable": "seenMax",
-      "type": "Number",
-      "default": 100,
-      "label": "Max seen history size"
-    },
-    {
-      "variable": "submitActivity",
-      "type": "Boolean",
-      "default": false,
-      "label": "Submit activity back to instances"
+      "name": "Max videos per channel",
+      "description": "Maximum number of videos from the same channel in an aggregated feed page (default 2).",
+      "type": "Text",
+      "default": "2"
     },
     {
       "variable": "preferredLanguages",
+      "name": "Preferred Languages",
+      "description": "Comma-separated language codes to prefer (e.g. en,fr,es). Used client-side (and best-effort server param).",
       "type": "Text",
-      "default": "",
-      "label": "Preferred languages (comma separated codes)"
+      "default": ""
+    },
+    {
+      "variable": "seenMax",
+      "name": "Recent Seen Limit",
+      "description": "Number of recent video IDs to remember to avoid repeats across short sessions.",
+      "type": "Text",
+      "default": "500"
+    },
+    {
+      "variable": "submitActivity",
+      "name": "Report Views",
+      "description": "Report viewing activity to PeerTube instances.",
+      "type": "Boolean",
+      "default": "true"
     }
   ]
 }

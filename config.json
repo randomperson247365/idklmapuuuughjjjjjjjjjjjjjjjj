@@ -1,84 +1,59 @@
 {
-  "name": "PeerTube (Enhanced Multi-Instance)",
-  "description": "PeerTube plugin with multi-instance support, dedupe, random sampling, language prefs, and persistent seen-IDs.",
+  "name": "Enhanced PeerTube Multi-Instance",
+  "description": "Improved PeerTube plugin supporting multiple instances and random video selection",
   "author": "Enhanced PeerTube Developer",
   "authorUrl": "https://github.com/randomperson247365",
-  "platformUrl": "https://joinpeertube.org/",
   "sourceUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/config.json",
   "repositoryUrl": "https://github.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj",
   "scriptUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/script.js",
   "version": 32,
   "iconUrl": "https://raw.githubusercontent.com/randomperson247365/idklmapuuuughjjjjjjjjjjjjjjjj/main/icon.png",
   "id": "enhanced-peertube-multi-instance",
-  "scriptSignature": "",
-  "scriptPublicKey": "",
   "packages": ["Http"],
   "allowEval": false,
-  "allowUrls": ["everywhere"],
-  "changelog": {
-    "31": [
-      "Return typed PlatformVideo items and guarantee contentType numeric",
-      "Robust parsing for settings in multiple shapes (string/array/object)",
-      "Instance URL normalization (auto-adds https://)",
-      "Persistent seen-IDs and per-channel caps"
-    ],
-    "32": [
-      "Skip and cache failing instances (cooldown), persist unhealthy hosts",
-      "Avoid retrying fake/broken instances and fall back to healthy ones"
-    ]
-  },
-  "constants": {
-    "baseUrl": "https://peertube.futo.org"
-  },
+  "allowUrls": ["https://*", "http://*"],
   "settings": [
     {
       "variable": "instancesList",
-      "name": "PeerTube Instances",
-      "description": "Comma-separated list of PeerTube instance base URLs to use. You can enter bare domains (plugin will add https://) or full URLs.",
       "type": "Text",
-      "default": "https://peertube.futo.org"
+      "default": "https://peertube.futo.org",
+      "label": "Instances (comma separated)"
     },
     {
       "variable": "randomizeInstances",
-      "name": "Randomize Instances",
-      "description": "If enabled, the home feed will sample random instances from the configured list.",
       "type": "Boolean",
-      "default": false
+      "default": true,
+      "label": "Randomize instance order"
     },
     {
       "variable": "instanceSampleSize",
-      "name": "Instances Sample Size",
-      "description": "How many instances to sample when building the home feed.",
       "type": "Number",
-      "default": 3
+      "default": 3,
+      "label": "Number of instances to sample"
     },
     {
       "variable": "maxPerChannel",
-      "name": "Max videos per channel",
-      "description": "Maximum number of videos from the same channel in an aggregated feed page.",
       "type": "Number",
-      "default": 2
-    },
-    {
-      "variable": "preferredLanguages",
-      "name": "Preferred Languages",
-      "description": "Comma-separated language codes to prefer (e.g. en,fr,es). Used client-side for filtering.",
-      "type": "Text",
-      "default": ""
+      "default": 2,
+      "label": "Max videos per channel"
     },
     {
       "variable": "seenMax",
-      "name": "Recent Seen Limit",
-      "description": "Number of recent video IDs to remember to avoid repeats across short sessions.",
       "type": "Number",
-      "default": 500
+      "default": 100,
+      "label": "Max seen history size"
     },
     {
       "variable": "submitActivity",
-      "name": "Report Views",
-      "description": "Report viewing activity to PeerTube instances.",
       "type": "Boolean",
-      "default": true
+      "default": false,
+      "label": "Submit activity back to instances"
+    },
+    {
+      "variable": "preferredLanguages",
+      "type": "Text",
+      "default": "",
+      "label": "Preferred languages (comma separated codes)"
     }
   ]
 }
